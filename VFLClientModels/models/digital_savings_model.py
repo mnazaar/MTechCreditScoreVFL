@@ -48,7 +48,7 @@ def create_model(input_dim, num_classes):
 def load_and_preprocess_data():
     """Load and preprocess the digital savings bank data"""
     # Load the data
-    df = pd.read_csv('dataset/data/banks/digital_savings_bank.csv')
+    df = pd.read_csv('VFLClientModels/dataset/data/banks/digital_savings_bank.csv')
     
     # Basic feature engineering
     df['transaction_volume'] = df['avg_monthly_transactions'] * df['avg_transaction_value']
@@ -133,7 +133,7 @@ def plot_training_history(history):
     plt.legend()
     
     plt.tight_layout()
-    plt.savefig('./models/plots/digital_bank_training_history.png')
+    plt.savefig('VFLClientModels/models/plots/digital_bank_training_history.png')
     plt.close()
 
 def plot_confusion_matrix(y_true, y_pred, classes):
@@ -146,7 +146,7 @@ def plot_confusion_matrix(y_true, y_pred, classes):
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
     plt.tight_layout()
-    plt.savefig('./models/plots/digital_bank_confusion_matrix.png')
+    plt.savefig('VFLClientModels/models/plots/digital_bank_confusion_matrix.png')
     plt.close()
 
 def test_model_samples(X_test, y_test, customer_ids, classes, model, n_samples=5):
@@ -175,8 +175,8 @@ def test_model_samples(X_test, y_test, customer_ids, classes, model, n_samples=5
 
 def main():
     # Create necessary directories
-    os.makedirs('./models/saved_models', exist_ok=True)
-    os.makedirs('./models/plots', exist_ok=True)
+    os.makedirs('VFLClientModels/models/saved_models', exist_ok=True)
+    os.makedirs('VFLClientModels/models/plots', exist_ok=True)
     
     # Load and preprocess data
     print("Loading and preprocessing data...")
@@ -200,7 +200,7 @@ def main():
             verbose=1
         ),
         ModelCheckpoint(
-            './models/saved_models/digital_bank_model.h5',
+            'VFLClientModels/models/saved_models/digital_bank_model.keras',
             monitor='val_accuracy',
             save_best_only=True,
             verbose=1
@@ -231,11 +231,11 @@ def main():
     
     plot_confusion_matrix(y_test_labels, y_pred, classes)
     
-    np.save('./models/saved_models/feature_names.npy', feature_names)
+    np.save('VFLClientModels/models/saved_models/digital_bank_feature_names.npy', feature_names)
     
-    print("\nModel saved as './models/saved_models/digital_bank_model.h5'")
-    print("Feature names saved as './models/saved_models/feature_names.npy'")
-    print("Plots saved in './models/plots/' directory")
+    print("\nModel saved as 'VFLClientModels/models/saved_models/digital_bank_model.keras'")
+    print("Feature names saved as 'VFLClientModels/models/saved_models/digital_bank_feature_names.npy'")
+    print("Plots saved in 'VFLClientModels/models/plots/' directory")
     
     test_model_samples(X_test, y_test, customer_ids, classes, model)
 

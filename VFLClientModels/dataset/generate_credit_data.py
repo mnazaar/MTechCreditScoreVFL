@@ -42,17 +42,17 @@ def calculate_credit_score(row):
     
     # Calculate individual components
     income_score = min(100, (row['annual_income'] / 120000) * 100)
-    employment_score = min(100, (row['employment_duration'] / 12) * 100)
+    employment_score = min(100, (row['employment_length'] / 12) * 100)
     history_score = min(100, (row['credit_history_length'] / 10) * 100)
     cards_score = 100 if 1 <= row['num_credit_cards'] <= 5 else max(0, 100 - abs(row['num_credit_cards'] - 3) * 12)
-    debt_score = max(0, 100 - (row['debt_to_income'] * 0.7))
+    debt_score = max(0, 100 - (row['debt_to_income_ratio'] * 100))
     payment_score = row['payment_history']
     late_payment_score = max(0, 100 - row['late_payments'] * 18)
     savings_score = min(100, (row['savings_balance'] / 40000) * 100)
     inquiry_score = max(0, 100 - row['credit_inquiries'] * 12)
     age_score = min(100, max(0, (row['age'] - 18) * 2.5))
     expense_score = max(0, 100 - (row['monthly_expenses'] / (row['annual_income'] / 12)) * 70)
-    utilization_score = max(0, 100 - row['credit_utilization'] * 70)
+    utilization_score = max(0, 100 - row['credit_utilization_ratio'] * 100)
     transaction_score = min(100, row['avg_monthly_transactions'] * 2)
     digital_score = min(100, row['digital_banking_score'])
     investment_score = min(100, (row['investment_balance'] / 40000) * 100)
@@ -100,7 +100,7 @@ def generate_dataset(n_records, random_seed=42, offset=0):
     data = {
         'tax_id': generate_tax_id(n_records, offset),
         'age': np.random.gamma(shape=11, scale=3, size=n_records) + 18,
-        'employment_duration': np.random.gamma(shape=4, scale=4, size=n_records),
+        'employment_length': np.random.gamma(shape=4, scale=4, size=n_records),
         'annual_income': np.exp(np.random.normal(11, 0.7, n_records)),
     }
     
@@ -111,9 +111,10 @@ def generate_dataset(n_records, random_seed=42, offset=0):
         'payment_history': np.random.beta(6, 2, n_records) * 100,
         'late_payments': np.random.poisson(0.7, n_records),
         'credit_inquiries': np.random.poisson(0.7, n_records),
-        'credit_limit': np.exp(np.random.normal(9.5, 1.0, n_records)),
-        'credit_utilization': np.random.beta(2, 4, n_records),
+        'total_credit_limit': data['annual_income'] * np.random.beta(5, 2, n_records),  # 0.5x to 2.5x annual income
+        'credit_utilization_ratio': np.random.beta(2, 4, n_records),
         'last_late_payment_days': np.random.exponential(150, n_records),
+        'num_loan_accounts': np.random.poisson(1.5, n_records),
     })
     
     # Banking behavior
@@ -148,12 +149,13 @@ def generate_dataset(n_records, random_seed=42, offset=0):
     
     # Clip values to realistic ranges
     df['age'] = df['age'].clip(18, 85)
+    df['employment_length'] = df['employment_length'].clip(0, 40)
     df['annual_income'] = df['annual_income'].clip(18000, 800000)
-    df['employment_duration'] = df['employment_duration'].clip(0, 40)
     df['credit_history_length'] = df['credit_history_length'].clip(0, 35)
     df['num_credit_cards'] = df['num_credit_cards'].clip(0, 10)
-    df['credit_limit'] = df['credit_limit'].clip(500, 200000)
-    df['credit_utilization'] = df['credit_utilization'].clip(0, 1)
+    df['num_loan_accounts'] = df['num_loan_accounts'].clip(0, 5)
+    df['total_credit_limit'] = df['total_credit_limit'].clip(5000, 500000)  # Increased max limit
+    df['credit_utilization_ratio'] = df['credit_utilization_ratio'].clip(0, 1)
     df['last_late_payment_days'] = df['last_late_payment_days'].clip(0, 365)
     df['savings_balance'] = df['savings_balance'].clip(0, 1500000)
     df['checking_balance'] = df['checking_balance'].clip(0, 150000)
@@ -170,8 +172,10 @@ def generate_dataset(n_records, random_seed=42, offset=0):
     
     total_debt = (df['current_debt'] + df['auto_loan_balance'] + 
                  df['mortgage_balance'] + df['investment_loan_balance'])
-    df['debt_to_income'] = (total_debt / df['annual_income']) * 100
-    df['debt_to_income'] = df['debt_to_income'].clip(0, 120)
+    # Adjust debt-to-income ratio to be more realistic (most should be under 0.43)
+    base_ratio = np.random.beta(4, 8, n_records) * 0.5  # Most under 0.3
+    debt_influence = np.clip(total_debt / df['annual_income'], 0, 1) * 0.3  # Max 0.3 from actual debt
+    df['debt_to_income_ratio'] = (base_ratio + debt_influence).clip(0, 0.8)
     
     # Calculate credit scores
     df['credit_score'] = df.apply(calculate_credit_score, axis=1)
@@ -179,7 +183,7 @@ def generate_dataset(n_records, random_seed=42, offset=0):
     # Round monetary values
     monetary_columns = [
         'annual_income', 'current_debt', 'savings_balance', 'checking_balance',
-        'investment_balance', 'monthly_expenses', 'credit_limit', 
+        'investment_balance', 'monthly_expenses', 'total_credit_limit', 
         'avg_transaction_value', 'auto_loan_balance', 'mortgage_balance',
         'investment_loan_balance'
     ]
@@ -187,14 +191,14 @@ def generate_dataset(n_records, random_seed=42, offset=0):
     
     # Round percentage and ratio columns
     percentage_columns = [
-        'payment_history', 'credit_utilization', 'digital_banking_score',
+        'payment_history', 'credit_utilization_ratio', 'digital_banking_score',
         'mobile_banking_usage', 'online_transactions_ratio', 
-        'international_transactions_ratio', 'debt_to_income'
+        'international_transactions_ratio', 'debt_to_income_ratio'
     ]
     df[percentage_columns] = df[percentage_columns].round(4)
     
     # Round other numeric columns
-    df['employment_duration'] = df['employment_duration'].round(1)
+    df['employment_length'] = df['employment_length'].round(1)
     df['credit_history_length'] = df['credit_history_length'].round(1)
     df['avg_monthly_transactions'] = df['avg_monthly_transactions'].round(1)
     df['last_late_payment_days'] = df['last_late_payment_days'].round(0)
@@ -216,21 +220,22 @@ def print_dataset_stats(df, dataset_name):
         print(df[display_columns].head())
 
 def main():
+    """Generate credit scoring datasets"""
     # Create directories
-    os.makedirs('dataset/data', exist_ok=True)
-    os.makedirs('dataset/data/test', exist_ok=True)
+    os.makedirs('VFLClientModels/dataset/data', exist_ok=True)
+    os.makedirs('VFLClientModels/dataset/data/test', exist_ok=True)
     
-    # Generate training dataset (10000 records)
+    # Generate training dataset
     print("Generating training dataset...")
-    train_df = generate_dataset(10000, random_seed=RANDOM_SEED, offset=0)
-    train_df.to_csv('dataset/data/credit_scoring_dataset.csv', index=False)
-    print_dataset_stats(train_df, "Training Dataset")
+    train_df = generate_dataset(n_records=10000, random_seed=RANDOM_SEED)
+    train_df.to_csv('VFLClientModels/dataset/data/credit_scoring_dataset.csv', index=False)
+    print_dataset_stats(train_df, "Training")
     
-    # Generate test dataset (2000 records)
+    # Generate test dataset
     print("\nGenerating test dataset...")
-    test_df = generate_dataset(2000, random_seed=RANDOM_SEED + 1, offset=10000)
-    test_df.to_csv('dataset/data/test/credit_scoring_test.csv', index=False)
-    print_dataset_stats(test_df, "Test Dataset")
+    test_df = generate_dataset(n_records=2000, random_seed=RANDOM_SEED+1, offset=10000)
+    test_df.to_csv('VFLClientModels/dataset/data/test/credit_scoring_test.csv', index=False)
+    print_dataset_stats(test_df, "Test")
     
     print("\nDatasets generated successfully!")
 

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 
 def determine_savings_category(row):
     """
@@ -77,7 +78,7 @@ def calculate_digital_engagement_metrics(df):
 def create_digital_savings_dataset():
     """Create digital savings bank dataset from credit scoring dataset"""
     # Read the original dataset
-    df = pd.read_csv('dataset/data/credit_scoring_dataset.csv')
+    df = pd.read_csv('VFLClientModels/dataset/data/credit_scoring_dataset.csv')
     
     # Select relevant features for digital savings bank
     selected_features = [
@@ -187,16 +188,46 @@ def create_digital_savings_dataset():
         print(category_data.describe().round(2))
     
     # Save the dataset
-    output_path = 'dataset/data/banks/digital_savings_bank.csv'
+    output_path = 'VFLClientModels/dataset/data/banks/digital_savings_bank.csv'
     savings_df.to_csv(output_path, index=False)
     print(f"\nDataset saved to: {output_path}")
     
     return savings_df
 
-if __name__ == "__main__":
-    # Create directories if they don't exist
-    import os
-    os.makedirs('dataset/data/banks', exist_ok=True)
+def print_dataset_stats(df):
+    """Print statistics for the digital savings dataset"""
+    print("\nDigital Savings Dataset Statistics:")
+    print(f"Number of records: {len(df)}")
+    print("\nCustomer Category Distribution:")
+    print(df['customer_category'].value_counts())
+    print("\nKey Metrics Summary:")
+    summary_cols = ['savings_balance', 'digital_banking_score', 'payment_history', 
+                   'annual_income', 'digital_activity_score']
+    print(df[summary_cols].describe().round(2))
+    print("\nSample records:")
+    display_cols = ['tax_id', 'customer_category', 'savings_balance', 
+                   'digital_banking_score', 'digital_activity_score']
+    print(df[display_cols].head())
+
+def main():
+    """Generate digital savings bank dataset"""
+    # Create directories
+    os.makedirs('VFLClientModels/dataset/data/banks', exist_ok=True)
     
-    # Generate the dataset
-    create_digital_savings_dataset() 
+    # Load credit scoring dataset
+    credit_df = pd.read_csv('VFLClientModels/dataset/data/credit_scoring_dataset.csv')
+    
+    # Generate digital savings dataset
+    print("Generating digital savings bank dataset...")
+    savings_df = create_digital_savings_dataset()
+    
+    # Save dataset
+    output_path = 'VFLClientModels/dataset/data/banks/digital_savings_bank.csv'
+    savings_df.to_csv(output_path, index=False)
+    print(f"\nDataset saved to {output_path}")
+    
+    # Print statistics
+    print_dataset_stats(savings_df)
+
+if __name__ == "__main__":
+    main() 
