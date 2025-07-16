@@ -1,0 +1,137 @@
+import os
+import sys
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+import joblib
+import shap
+import warnings
+warnings.filterwarnings('ignore')
+
+# Add parent directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+def load_auto_loans_model_and_data():
+    """Load the auto loans model and prepare data"""
+    print("Loading auto loans model and data...")
+    
+    try:
+        # Load the trained model
+        model = keras.models.load_model(os.path.join('..', '..', 'saved_models', 'auto_loans_model.keras'), compile=False)
+        print("Auto loans model loaded successfully")
+        
+        # Load feature names
+        feature_names = np.load(os.path.join('..', '..', 'saved_models', 'auto_loans_feature_names.npy'), allow_pickle=True).tolist()
+        print(f"Feature names loaded: {len(feature_names)} features")
+        
+        # Create a fallback scaler
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        print("Using fallback StandardScaler")
+        
+        # Load original data for generating explanations
+        df = pd.read_csv(os.path.join('..', '..', '..', 'dataset', 'data', 'banks', 'auto_loans_bank.csv'))
+        print(f"Original data loaded: {len(df)} records")
+        
+        return model, feature_names, scaler, df
+        
+    except Exception as e:
+        print(f"Error loading model/data: {str(e)}")
+        raise
+
+def test_single_sample():
+    """Test processing a single sample"""
+    print("=" * 60)
+    print("Testing single sample processing...")
+    
+    # Load model and data
+    model, feature_names, scaler, df = load_auto_loans_model_and_data()
+    
+    # Prepare data
+    X = df[feature_names].values
+    X_scaled = scaler.fit_transform(X)
+    
+    # Test with just one sample
+    test_sample = X_scaled[0:1]
+    print(f"Test sample shape: {test_sample.shape}")
+    
+    # Initialize SHAP explainer
+    print("Initializing SHAP explainer...")
+    explainer = shap.KernelExplainer(lambda x: model.predict(x), X_scaled[:10])  # Use first 10 samples as background
+    
+    # Get SHAP values for test sample
+    print("Getting SHAP values...")
+    shap_values = explainer.shap_values(test_sample)
+    
+    print(f"SHAP values type: {type(shap_values)}")
+    print(f"SHAP values shape: {shap_values.shape}")
+    print(f"SHAP values dtype: {shap_values.dtype}")
+    
+    # Handle both list and array cases
+    if isinstance(shap_values, list):
+        print("SHAP values is a list")
+        shap_val = shap_values[0].ravel() if hasattr(shap_values[0], 'ravel') else np.array(shap_values[0])
+    else:
+        print("SHAP values is a numpy array")
+        shap_val = shap_values.ravel() if hasattr(shap_values, 'ravel') else np.array(shap_values)
+    
+    print(f"Processed SHAP values shape: {shap_val.shape}")
+    print(f"Processed SHAP values length: {len(shap_val)}")
+    
+    # Check if we can access all indices
+    print(f"Can access index 0: {shap_val[0]}")
+    print(f"Can access index -1: {shap_val[-1]}")
+    print(f"Can access index len-1: {shap_val[len(shap_val)-1]}")
+    
+    # Try to get top 3 features
+    feature_importance = np.abs(shap_val)
+    print(f"Feature importance shape: {feature_importance.shape}")
+    
+    # Get top 3 indices
+    top_indices = np.argsort(feature_importance)[-3:][::-1]
+    print(f"Top 3 indices: {top_indices}")
+    
+    # Check if indices are within bounds
+    for idx in top_indices:
+        if idx < len(feature_names) and idx < len(shap_val):
+            print(f"Index {idx} is valid - Feature: {feature_names[idx]}, Impact: {shap_val[idx]}")
+        else:
+            print(f"Index {idx} is out of bounds!")
+    
+    print("=" * 60)
+
+def test_process_sample_batch():
+    """Test the process_sample_batch function"""
+    print("=" * 60)
+    print("Testing process_sample_batch function...")
+    
+    # Load model and data
+    model, feature_names, scaler, df = load_auto_loans_model_and_data()
+    
+    # Prepare data
+    X = df[feature_names].values
+    X_scaled = scaler.fit_transform(X)
+    
+    # Initialize SHAP explainer
+    print("Initializing SHAP explainer...")
+    explainer = shap.KernelExplainer(lambda x: model.predict(x), X_scaled[:10])  # Use first 10 samples as background
+    
+    # Test the process_sample_batch function
+    args = (0, 1, X_scaled, feature_names, explainer)  # Process just sample 0
+    
+    print("Calling process_sample_batch...")
+    try:
+        from auto_loans_feature_predictor_dataset import process_sample_batch
+        results = process_sample_batch(args)
+        print(f"Results: {results}")
+    except Exception as e:
+        print(f"Error in process_sample_batch: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    
+    print("=" * 60)
+
+if __name__ == "__main__":
+    test_single_sample()
+    test_process_sample_batch() 

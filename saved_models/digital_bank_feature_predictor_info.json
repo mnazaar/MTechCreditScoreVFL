@@ -1,0 +1,33 @@
+{
+  "input_dim": 8,
+  "num_features": 26,
+  "num_directions": 2,
+  "num_impacts": 4,
+  "model_parameters": 14704,
+  "trainable_parameters": 14704,
+  "non_trainable_parameters": 0,
+  "training_date": "2025-07-12T19:39:43.551185",
+  "architecture": "Multi-output neural network for feature prediction",
+  "training_history": {
+    "final_epoch": 100,
+    "final_training_loss": 7.119456768035889,
+    "final_validation_loss": 4.669510364532471,
+    "best_accuracies": {
+      "feature_1": {
+        "idx_accuracy": 0.9987499713897705,
+        "direction_accuracy": 0.9987499713897705,
+        "impact_accuracy": 0.9987499713897705
+      },
+      "feature_2": {
+        "idx_accuracy": 0.5162500143051147,
+        "direction_accuracy": 0.6737499833106995,
+        "impact_accuracy": 0.9487500190734863
+      },
+      "feature_3": {
+        "idx_accuracy": 0.4399999976158142,
+        "direction_accuracy": 0.5287500023841858,
+        "impact_accuracy": 0.7825000286102295
+      }
+    }
+  }
+}
