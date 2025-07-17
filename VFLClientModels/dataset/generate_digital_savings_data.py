@@ -4,15 +4,19 @@ import os
 
 def determine_savings_category(row):
     """
-    Determine customer category based on weighted factors:
-    - savings_balance (25%): Higher balances indicate better category
-    - digital_engagement (20%): Level of digital channel usage
-    - payment_history (15%): Better payment history indicates reliability
-    - annual_income (15%): Higher income indicates better potential
-    - transaction_value (15%): Higher transaction values indicate more business
-    - age (5%): Longer relationship potential
-    - e_statement (3%): Digital adoption
-    - mobile_usage (2%): Digital engagement
+    Determine customer category based on weighted factors (Enhanced with new features):
+    - savings_balance (20%): Higher balances indicate better category
+    - investment_balance (15%): Investment portfolio size
+    - digital_engagement (15%): Level of digital channel usage
+    - credit_score (10%): Overall creditworthiness
+    - payment_history (10%): Better payment history indicates reliability
+    - annual_income (10%): Higher income indicates better potential
+    - transaction_value (8%): Higher transaction values indicate more business
+    - employment_stability (5%): Job stability
+    - international_activity (3%): Global banking activity
+    - age (2%): Longer relationship potential
+    - e_statement (1%): Digital adoption
+    - mobile_usage (1%): Digital engagement
     
     Categories:
     - Regular: Basic customers
@@ -21,34 +25,50 @@ def determine_savings_category(row):
     """
     # Calculate individual component scores (0-100)
     savings_score = min(100, (row['savings_balance'] / 100000) * 100)  # Lowered threshold
+    investment_score = min(100, (row['investment_balance'] / 50000) * 100)  # Investment portfolio
     digital_score = row['digital_banking_score']
+    credit_score_norm = (row['credit_score'] - 300) / 550 * 100  # Normalize credit score
     payment_score = row['payment_history']
     income_score = min(100, (row['annual_income'] / 150000) * 100)  # Lowered threshold
     transaction_score = min(100, (row['avg_monthly_transactions'] * row['avg_transaction_value']) / 4000 * 100)  # Lowered threshold
+    employment_score = min(100, row['employment_length'] * 10)  # Employment stability
+    international_score = row['international_transactions_ratio'] * 100  # International activity
     age_score = min(100, max(0, (row['age'] - 18) * 2))
     e_statement_score = row['e_statement_enrolled'] * 100
     mobile_score = row['mobile_banking_usage']
     
     # Calculate weighted total score
     total_score = (
-        savings_score * 0.25 +  # Reduced weight
-        digital_score * 0.20 +
-        payment_score * 0.15 +
-        income_score * 0.15 +
-        transaction_score * 0.15 +  # Increased weight
-        age_score * 0.05 +
-        e_statement_score * 0.03 +
-        mobile_score * 0.02
+        savings_score * 0.20 +  # Reduced weight
+        investment_score * 0.15 +  # New component
+        digital_score * 0.15 +  # Reduced weight
+        credit_score_norm * 0.10 +  # New component
+        payment_score * 0.10 +  # Reduced weight
+        income_score * 0.10 +  # Reduced weight
+        transaction_score * 0.08 +  # Reduced weight
+        employment_score * 0.05 +  # New component
+        international_score * 0.03 +  # New component
+        age_score * 0.02 +  # Reduced weight
+        e_statement_score * 0.01 +  # Reduced weight
+        mobile_score * 0.01  # Reduced weight
     )
     
-    # Additional bonus points for high-value customers
+    # Additional bonus points for high-value customers (Enhanced criteria)
     if (row['savings_balance'] >= 75000 and 
+        row['investment_balance'] >= 25000 and
         row['payment_history'] >= 90 and 
-        row['digital_banking_score'] >= 80):
-        total_score += 10
+        row['digital_banking_score'] >= 80 and
+        row['credit_score'] >= 700):
+        total_score += 15
     
     if (row['annual_income'] >= 100000 and 
-        row['avg_monthly_transactions'] >= 30):
+        row['avg_monthly_transactions'] >= 30 and
+        row['employment_length'] >= 3):
+        total_score += 8
+    
+    # Bonus for sophisticated banking behavior
+    if (row['international_transactions_ratio'] >= 0.1 and
+        row['total_credit_limit'] >= 50000):
         total_score += 5
     
     # Determine category based on adjusted thresholds
@@ -60,7 +80,7 @@ def determine_savings_category(row):
         return 'Regular'
 
 def calculate_digital_engagement_metrics(df):
-    """Calculate additional digital engagement metrics"""
+    """Calculate additional digital engagement metrics and financial ratios"""
     # Digital activity score (combination of various digital metrics)
     df['digital_activity_score'] = (
         df['digital_banking_score'] * 0.4 +
@@ -73,27 +93,68 @@ def calculate_digital_engagement_metrics(df):
         df['avg_monthly_transactions'] * df['online_transactions_ratio']
     ).round(1)
     
+    # Wealth score (combination of all balance types)
+    df['total_wealth'] = (
+        df['savings_balance'] + 
+        df['checking_balance'] + 
+        df['investment_balance']
+    )
+    
+    # Net worth calculation (total assets minus debt)
+    df['net_worth'] = (
+        df['total_wealth'] - 
+        df['current_debt'] - 
+        df['auto_loan_balance'] - 
+        df['mortgage_balance']
+    )
+    
+    # Credit efficiency ratio (available credit vs used credit)
+    df['credit_efficiency'] = (
+        (df['total_credit_limit'] - (df['total_credit_limit'] * df['credit_utilization_ratio'])) / 
+        df['total_credit_limit'].replace(0, 1)
+    ).round(3)
+    
+    # Financial stability score
+    df['financial_stability_score'] = (
+        (df['net_worth'] / df['annual_income'].replace(0, 1)).clip(-5, 10) * 10 +  # Net worth to income ratio
+        ((df['annual_income'] - df['monthly_expenses'] * 12) / df['annual_income'].replace(0, 1)).clip(0, 1) * 30 +  # Savings rate
+        df['employment_length'].clip(0, 10) * 5 +  # Employment stability
+        (df['credit_score'] - 300) / 550 * 50  # Credit score component
+    ).clip(0, 100).round(2)
+    
     return df
 
 def create_digital_savings_dataset():
     """Create digital savings bank dataset from credit scoring dataset"""
     # Read the original dataset
-    df = pd.read_csv('VFLClientModels/dataset/data/credit_scoring_dataset.csv')
+    df = pd.read_csv('data/credit_scoring_dataset.csv')
     
     # Select relevant features for digital savings bank
     selected_features = [
-        'tax_id',                    # Customer identifier
-        'annual_income',             # Income potential
-        'savings_balance',           # Primary balance metric
-        'payment_history',           # Payment reliability
-        'age',                       # Customer age
-        'avg_monthly_transactions',  # Transaction frequency
-        'avg_transaction_value',     # Transaction value
-        'digital_banking_score',     # Digital engagement
-        'mobile_banking_usage',      # Mobile usage
-        'online_transactions_ratio', # Digital transaction ratio
-        'e_statement_enrolled',      # Digital adoption
-        'checking_balance'           # Additional balance metric
+        'tax_id',                          # Customer identifier
+        'annual_income',                   # Income potential
+        'savings_balance',                 # Primary balance metric
+        'checking_balance',                # Additional balance metric
+        'investment_balance',              # Investment portfolio size
+        'payment_history',                 # Payment reliability
+        'credit_score',                    # Overall creditworthiness
+        'age',                             # Customer age
+        'employment_length',               # Job stability
+        'avg_monthly_transactions',        # Transaction frequency
+        'avg_transaction_value',           # Transaction value
+        'digital_banking_score',           # Digital engagement
+        'mobile_banking_usage',            # Mobile usage
+        'online_transactions_ratio',       # Digital transaction ratio
+        'international_transactions_ratio', # International activity
+        'e_statement_enrolled',            # Digital adoption
+        'monthly_expenses',                # Spending pattern
+        'total_credit_limit',              # Credit capacity
+        'credit_utilization_ratio',        # Credit usage
+        'num_credit_cards',                # Credit relationships
+        'credit_history_length',           # Credit maturity
+        'current_debt',                    # Debt position
+        'auto_loan_balance',               # Auto loan debt
+        'mortgage_balance'                 # Mortgage debt
     ]
     
     # Create subset with selected features
@@ -163,17 +224,33 @@ def create_digital_savings_dataset():
     print("2. annual_income: Annual income")
     print("3. savings_balance: Primary savings balance")
     print("4. checking_balance: Checking account balance")
-    print("5. payment_history: Payment reliability score")
-    print("6. avg_monthly_transactions: Average monthly transaction count")
-    print("7. avg_transaction_value: Average value per transaction")
-    print("8. digital_banking_score: Overall digital banking engagement")
-    print("9. mobile_banking_usage: Mobile banking usage score")
-    print("10. online_transactions_ratio: Proportion of digital transactions")
-    print("11. e_statement_enrolled: Digital statement enrollment")
-    print("12. digital_activity_score: Composite digital engagement score")
-    print("13. monthly_digital_transactions: Digital transaction frequency")
-    print("14. age: Customer age")
-    print("15. customer_category: Customer segment")
+    print("5. investment_balance: Investment portfolio balance")
+    print("6. payment_history: Payment reliability score")
+    print("7. credit_score: Overall creditworthiness")
+    print("8. age: Customer age")
+    print("9. employment_length: Years of employment")
+    print("10. avg_monthly_transactions: Average monthly transaction count")
+    print("11. avg_transaction_value: Average value per transaction")
+    print("12. digital_banking_score: Overall digital banking engagement")
+    print("13. mobile_banking_usage: Mobile banking usage score")
+    print("14. online_transactions_ratio: Proportion of digital transactions")
+    print("15. international_transactions_ratio: International transaction activity")
+    print("16. e_statement_enrolled: Digital statement enrollment")
+    print("17. monthly_expenses: Monthly spending pattern")
+    print("18. total_credit_limit: Total available credit")
+    print("19. credit_utilization_ratio: Credit usage ratio")
+    print("20. num_credit_cards: Number of credit cards")
+    print("21. credit_history_length: Length of credit history")
+    print("22. current_debt: Current debt amount")
+    print("23. auto_loan_balance: Outstanding auto loan")
+    print("24. mortgage_balance: Outstanding mortgage")
+    print("25. digital_activity_score: Composite digital engagement score")
+    print("26. monthly_digital_transactions: Digital transaction frequency")
+    print("27. total_wealth: Combined asset balances")
+    print("28. net_worth: Assets minus debts")
+    print("29. credit_efficiency: Available vs used credit ratio")
+    print("30. financial_stability_score: Overall financial health score")
+    print("31. customer_category: Customer segment")
     
     print("\nFinal Customer Category Distribution:")
     category_dist = savings_df['customer_category'].value_counts()
@@ -188,7 +265,7 @@ def create_digital_savings_dataset():
         print(category_data.describe().round(2))
     
     # Save the dataset
-    output_path = 'VFLClientModels/dataset/data/banks/digital_savings_bank.csv'
+    output_path = 'data/banks/digital_savings_bank.csv'
     savings_df.to_csv(output_path, index=False)
     print(f"\nDataset saved to: {output_path}")
     
@@ -212,17 +289,17 @@ def print_dataset_stats(df):
 def main():
     """Generate digital savings bank dataset"""
     # Create directories
-    os.makedirs('VFLClientModels/dataset/data/banks', exist_ok=True)
+    os.makedirs('data/banks', exist_ok=True)
     
     # Load credit scoring dataset
-    credit_df = pd.read_csv('VFLClientModels/dataset/data/credit_scoring_dataset.csv')
+    credit_df = pd.read_csv('data/credit_scoring_dataset.csv')
     
     # Generate digital savings dataset
     print("Generating digital savings bank dataset...")
     savings_df = create_digital_savings_dataset()
     
     # Save dataset
-    output_path = 'VFLClientModels/dataset/data/banks/digital_savings_bank.csv'
+    output_path = 'data/banks/digital_savings_bank.csv'
     savings_df.to_csv(output_path, index=False)
     print(f"\nDataset saved to {output_path}")
     

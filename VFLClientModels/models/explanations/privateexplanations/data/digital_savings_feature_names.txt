@@ -1,0 +1,47 @@
+age
+employment_length
+annual_income
+credit_history_length
+num_credit_cards
+payment_history
+late_payments
+credit_inquiries
+total_credit_limit
+credit_utilization_ratio
+last_late_payment_days
+num_loan_accounts
+savings_balance
+checking_balance
+investment_balance
+avg_monthly_transactions
+avg_transaction_value
+international_transactions_ratio
+digital_banking_score
+mobile_banking_usage
+online_transactions_ratio
+e_statement_enrolled
+current_debt
+monthly_expenses
+auto_loan_balance
+mortgage_balance
+investment_loan_balance
+debt_to_income_ratio
+credit_score
+digital_activity_score
+monthly_digital_transactions
+total_liquid_assets
+total_portfolio_value
+financial_health_score
+investment_readiness_score
+digital_engagement_level_High
+digital_engagement_level_Low
+digital_engagement_level_Medium
+digital_engagement_level_Very Low
+risk_assessment_High Risk
+risk_assessment_Low Risk
+risk_assessment_Medium Risk
+risk_assessment_Very High Risk
+recommended_account_type_Basic Savings
+recommended_account_type_Premium Savings
+recommended_account_type_Private Banking
+recommended_account_type_Standard Savings

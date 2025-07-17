@@ -1,0 +1,9 @@
+{
+  "input_dim": 16,
+  "num_features": 21,
+  "num_directions": 2,
+  "num_impacts": 4,
+  "model_parameters": 719185,
+  "training_date": "2025-07-12T19:26:45.972554",
+  "architecture": "Multi-output neural network for feature prediction"
+}

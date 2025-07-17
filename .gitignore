@@ -1,0 +1,5 @@
+VFLClientModels/models/data/intermediate_representations/*.csv
+**/*.log
+**/*checkpoint*
+**/*build*json
+**/*trial*json
