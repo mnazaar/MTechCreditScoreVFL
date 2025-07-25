@@ -11,6 +11,7 @@ from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.keras import layers, models
 import keras_tuner as kt
+import tenseal as ts
 
 # ===================== Logging Setup =====================
 def setup_logging():
@@ -25,7 +26,7 @@ def setup_logging():
     console_handler.setFormatter(log_format)
     logger.addHandler(console_handler)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_handler = RotatingFileHandler(f'VFLClientModels/logs/vfl_automl_xgboost_simple_{timestamp}.log', maxBytes=10*1024*1024, backupCount=3, encoding='utf-8')
+    file_handler = RotatingFileHandler(f'VFLClientModels/logs/vfl_automl_xgboost_homoenc_dp_{timestamp}.log', maxBytes=10*1024*1024, backupCount=3, encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(log_format)
     logger.addHandler(file_handler)
@@ -212,16 +213,140 @@ def load_and_preprocess_data(sample_size=None):
             customer_idx = customer_id_to_index[customer_id]
             credit_card_repr[customer_idx] = xgb_representations[i]
     credit_card_mask = customer_df['has_credit_card'].values.astype(np.float32).reshape(-1, 1)
-    # Combine features
-    X_combined = np.concatenate([
-        auto_repr, auto_mask, digital_repr, digital_mask, home_repr, home_mask, credit_card_repr, credit_card_mask
-    ], axis=1)
+
+    # ===================== Homomorphic Encryption with TenSEAL =====================
+    # Demonstrate encrypting and decrypting a sample vector using TenSEAL CKKS
+    if len(auto_repr) > 0:
+        # Create TenSEAL context for CKKS
+        context = ts.context(
+            ts.SCHEME_TYPE.CKKS,
+            poly_modulus_degree=8192,
+            coeff_mod_bit_sizes=[60, 40, 40, 60]
+        )
+        context.generate_galois_keys()
+        context.global_scale = 2**40
+        # Encrypt the first customer's auto_repr
+        enc_vec = ts.ckks_vector(context, auto_repr[0].tolist())
+        # Decrypt to verify
+        dec_vec = enc_vec.decrypt()
+        logger.info(f"TenSEAL decrypted auto_repr sample (first customer): {dec_vec}")
+
+        # ===================== Secure Aggregation (Federated Averaging) Demo =====================
+        # Pad each party's vector to a common length and place features in their own slot
+        auto_len = len(auto_repr[0])
+        digital_len = len(digital_repr[0])
+        home_len = len(home_repr[0])
+        credit_card_len = len(credit_card_repr[0])
+        total_length = auto_len + digital_len + home_len + credit_card_len
+
+        # Create padded vectors for each party
+        auto_vec = np.zeros(total_length)
+        auto_vec[0:auto_len] = auto_repr[0]
+        digital_vec = np.zeros(total_length)
+        digital_vec[auto_len:auto_len+digital_len] = digital_repr[0]
+        home_vec = np.zeros(total_length)
+        home_vec[auto_len+digital_len:auto_len+digital_len+home_len] = home_repr[0]
+        credit_card_vec = np.zeros(total_length)
+        credit_card_vec[auto_len+digital_len+home_len:total_length] = credit_card_repr[0]
+
+        # Encrypt the padded vectors
+        auto_enc = ts.ckks_vector(context, auto_vec.tolist())
+        digital_enc = ts.ckks_vector(context, digital_vec.tolist())
+        home_enc = ts.ckks_vector(context, home_vec.tolist())
+        credit_card_enc = ts.ckks_vector(context, credit_card_vec.tolist())
+
+        # Aggregator computes the encrypted sum
+        sum_enc = auto_enc + digital_enc + home_enc + credit_card_enc
+
+        # Compute the encrypted average (divide by number of parties)
+        num_parties = 4
+        avg_enc = sum_enc * (1.0 / num_parties)
+
+        # Decrypt the result (only possible with secret key)
+        avg_dec = avg_enc.decrypt()
+        logger.info(f"TenSEAL decrypted federated average (first customer, padded): {avg_dec}")
+
+        # ===================== Use Aggregated Vector for Prediction =====================
+        # Load the trained credit score prediction model
+        try:
+            from tensorflow.keras.models import load_model
+            model_path = 'VFLClientModels/saved_models/vfl_automl_xgboost_homomorp_model.keras'
+            if os.path.exists(model_path):
+                prediction_model = load_model(model_path, compile=False)
+                # Ensure avg_dec is a 2D array for prediction
+                avg_dec_input = np.array(avg_dec).reshape(1, -1)
+                predicted_score = prediction_model.predict(avg_dec_input)
+                logger.info(f"Predicted credit score from federated average (padded): {predicted_score[0][0]}")
+            else:
+                logger.warning(f"Prediction model not found at {model_path}. Skipping prediction.")
+        except Exception as e:
+            logger.error(f"Error during prediction with federated average (padded): {e}")
+    # ===================== Create Padded, Slot-Based Vectors for All Samples =====================
+    auto_len = auto_repr.shape[1]
+    digital_len = digital_repr.shape[1]
+    home_len = home_repr.shape[1]
+    credit_card_len = credit_card_repr.shape[1]
+    total_length = auto_len + digital_len + home_len + credit_card_len
+    N = auto_repr.shape[0]
+    X_padded = np.zeros((N, total_length))
+    # Place each bank's features in their slot for all samples
+    X_padded[:, 0:auto_len] = auto_repr
+    X_padded[:, auto_len:auto_len+digital_len] = digital_repr
+    X_padded[:, auto_len+digital_len:auto_len+digital_len+home_len] = home_repr
+    X_padded[:, auto_len+digital_len+home_len:total_length] = credit_card_repr
+    # Use X_padded as the combined input for training and inference
+    X_combined = X_padded
     y_combined = master_df['credit_score'].values
     ids_combined = master_df['tax_id'].values
     X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
         X_combined, y_combined, ids_combined, test_size=0.2, random_state=RANDOM_SEED, stratify=pd.cut(y_combined, bins=5, labels=False)
     )
     return (X_train, X_test, y_train, y_test, ids_train, ids_test, fitted_auto_scaler, fitted_digital_scaler, fitted_home_scaler, None, auto_repr.shape[1], digital_repr.shape[1], home_repr.shape[1], credit_card_repr.shape[1], X_combined, y_combined, ids_combined)
+
+# ===================== DIFFERENTIAL PRIVACY CONFIGURATION =====================
+
+# Privacy Parameters
+DEFAULT_EPSILON = 1.0          # Privacy parameter ε (lower = more private)
+DEFAULT_DELTA = 1e-5           # Privacy parameter δ (failure probability)
+DEFAULT_NOISE_MULTIPLIER = 1.1 # Noise multiplier for DP-SGD
+DEFAULT_L2_NORM_CLIP = 1.0     # L2 norm clipping threshold
+
+# DP-SGD Configuration
+DP_SGD_ENABLED = True          # Enable DP-SGD during training
+
+# ===================== DP-SGD OPTIMIZER =====================
+class DPSGDOptimizer(tf.keras.optimizers.Optimizer):
+    """Differentially Private Stochastic Gradient Descent Optimizer"""
+    def __init__(self, 
+                 learning_rate: float = 0.01,
+                 noise_multiplier: float = DEFAULT_NOISE_MULTIPLIER,
+                 l2_norm_clip: float = DEFAULT_L2_NORM_CLIP,
+                 name: str = "DPSGD",
+                 **kwargs):
+        super().__init__(name, **kwargs)
+        self.learning_rate = learning_rate
+        self.noise_multiplier = noise_multiplier
+        self.l2_norm_clip = l2_norm_clip
+    def _create_slots(self, var_list):
+        for var in var_list:
+            self.add_slot(var, "momentum")
+    def _resource_apply_dense(self, grad, var):
+        clipped_grad = tf.clip_by_norm(grad, self.l2_norm_clip)
+        noise = tf.random.normal(
+            grad.shape, 
+            mean=0.0, 
+            stddev=self.l2_norm_clip * self.noise_multiplier
+        )
+        noisy_grad = clipped_grad + noise
+        var.assign_sub(self.learning_rate * noisy_grad)
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'learning_rate': self.learning_rate,
+            'noise_multiplier': self.noise_multiplier,
+            'l2_norm_clip': self.l2_norm_clip
+        })
+        return config
 
 # ===================== Model Training =====================
 def train_model(X_train, y_train, X_test, y_test, model_name, model_type, model_config, scaler, output_dim,
@@ -514,7 +639,7 @@ def build_vfl_model_with_hyperparameters(input_dim, hyperparameters):
     return model
 
 def build_vfl_model(input_dim):
-    """Builds a simple VFL model similar to vfl_automl_model.py"""
+    """Builds a simple VFL model with DP-SGD option"""
     model = models.Sequential([
         layers.InputLayer(input_shape=(input_dim,)),
         layers.BatchNormalization(),
@@ -524,7 +649,11 @@ def build_vfl_model(input_dim):
         layers.Dropout(0.2),
         layers.Dense(1, activation='linear')
     ])
-    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    if DP_SGD_ENABLED:
+        optimizer = DPSGDOptimizer(learning_rate=0.001, noise_multiplier=DEFAULT_NOISE_MULTIPLIER, l2_norm_clip=DEFAULT_L2_NORM_CLIP)
+    else:
+        optimizer = 'adam'
+    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
     return model
 
 def mc_dropout_intervals(model, X, n_samples=30, ci_levels=[68, 95]):
@@ -577,12 +706,12 @@ def run_training():
 
     # Save fitted scalers for inference
     import joblib
-    joblib.dump(auto_scaler_final, 'VFLClientModels/saved_models/auto_loans_scaler.pkl')
-    logger.info('Saved auto_loans_scaler.pkl')
-    joblib.dump(digital_scaler_final, 'VFLClientModels/saved_models/digital_bank_scaler.pkl')
-    logger.info('Saved digital_bank_scaler.pkl')
-    joblib.dump(home_scaler_final, 'VFLClientModels/saved_models/home_loans_scaler.pkl')
-    logger.info('Saved home_loans_scaler.pkl')
+    joblib.dump(auto_scaler_final, 'VFLClientModels/saved_models/auto_loans_scaler_homoenc_dp.pkl')
+    logger.info('Saved auto_loans_scaler_homoenc_dp.pkl')
+    joblib.dump(digital_scaler_final, 'VFLClientModels/saved_models/digital_bank_scaler_homoenc_dp.pkl')
+    logger.info('Saved digital_bank_scaler_homoenc_dp.pkl')
+    joblib.dump(home_scaler_final, 'VFLClientModels/saved_models/home_loans_scaler_homoenc_dp.pkl')
+    logger.info('Saved home_loans_scaler_homoenc_dp.pkl')
 
     # Build final model with best architecture
     final_model = build_vfl_model_with_hyperparameters(input_dim, best_hyperparameters)
@@ -633,12 +762,12 @@ def run_training():
     logger.info('Final model saved to VFLClientModels/saved_models/vfl_automl_xgboost_simple_model.keras')
     
     # Save best hyperparameters
-    joblib.dump(best_hyperparameters.values, 'VFLClientModels/saved_models/best_hyperparameters.pkl')
-    logger.info('Best hyperparameters saved to VFLClientModels/saved_models/best_hyperparameters.pkl')
+    joblib.dump(best_hyperparameters.values, 'VFLClientModels/saved_models/best_hyperparameters_homoenc_dp.pkl')
+    logger.info('Best hyperparameters saved to VFLClientModels/saved_models/best_hyperparameters_homoenc_dp.pkl')
 
 
 # Persistent cache file path
-_CACHE_PATH = 'VFLClientModels/saved_models/prediction_cache.pkl'
+_CACHE_PATH = 'VFLClientModels/saved_models/prediction_cache_homoenc_dp.pkl'
 
 # In-memory cache for predictions
 if os.path.exists(_CACHE_PATH):
