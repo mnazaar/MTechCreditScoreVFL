@@ -1,0 +1,106 @@
+====================================================================================================
+AUTOMATED DRIFT DETECTION AND RETRAINING SUMMARY REPORT
+====================================================================================================
+Generated: 2025-08-02 09:52:50
+Session ID: 20250802_095250
+
+EXECUTIVE SUMMARY:
+- Total domains checked: 4
+- Domains with drift detected: 1
+- Domains retrained: 1
+- Overall status: RETRAINING PERFORMED
+
+DOMAIN-SPECIFIC RESULTS:
+--------------------------------------------------
+AUTO_LOANS: NO DRIFT DETECTED
+  Status: Model stable, no retraining needed
+
+CREDIT_CARD: DRIFT DETECTED → RETRAINED
+  Drift Details: 
+XGBOOST CREDIT CARD MODEL DRIFT DETECTION REPORT
+Generated: 2025-08-02 09:32:05
+
+OVERALL STATUS: DRIFT DETECTED
+
+MODEL INFORMATION:
+- Model Type: XGBoost Credit Card Classifier
+- Feature Dimensions: ...
+
+DIGITAL_SAVINGS: NO DRIFT DETECTED
+  Status: Model stable, no retraining needed
+
+HOME_LOANS: NO DRIFT DETECTED
+  Status: Model stable, no retraining needed
+
+
+DETAILED DRIFT REPORTS:
+====================================================================================================
+
+CREDIT_CARD DETAILED DRIFT REPORT:
+--------------------------------------------------------------------------------
+
+XGBOOST CREDIT CARD MODEL DRIFT DETECTION REPORT
+Generated: 2025-08-02 09:32:05
+
+OVERALL STATUS: DRIFT DETECTED
+
+MODEL INFORMATION:
+- Model Type: XGBoost Credit Card Classifier
+- Feature Dimensions: 25
+- Number of Trees: 150
+- Max Depth: 8
+
+DETAILED DRIFT ANALYSIS:
+
+1. Statistical Drift (KS Test):
+   - Features with drift: 4
+   - Total features checked: 25
+   - Drift detected: True
+   - Drift percentage: 16.0% of features drifted
+DRIFTED FEATURES DETAILS:
+   - annual_income: KS=0.113, p-value=0.000
+   - income_to_limit_ratio: KS=0.156, p-value=0.000
+   - debt_service_ratio: KS=0.046, p-value=0.000
+   - risk_adjusted_income: KS=0.060, p-value=0.000
+
+2. Performance Drift (Confidence):
+   - Baseline avg confidence: 0.991
+   - Current avg confidence: 0.992
+   - Confidence drift: -0.08%
+   - Drift detected: False
+
+3. Prediction Drift (KS Test):
+   - KS statistic: 0.012
+   - P-value: 0.000
+   - Prediction shift: 0.000
+   - Drift detected: True
+
+FINAL RECOMMENDATION:
+RETRAINING RECOMMENDED - Drift detected in model performance
+
+NEXT STEPS:
+1. Initiate model retraining pipeline
+2. Review data quality and preprocessing
+3. Consider model interpretability analysis
+
+--------------------------------------------------------------------------------
+
+RETRAINING SUMMARY:
+--------------------------------------------------
+Successfully retrained: credit_card
+Domain models retrained: 1
+VFL central model retrained: NO
+Private explanation datasets regenerated: NO
+Private explanation models retrained: 0
+
+Processing pipeline executed:
+  - credit_card: VFLClientModels/models/credit_card_xgboost_model.py
+
+NEXT STEPS:
+--------------------------------------------------
+1. Monitor retrained models for performance improvements
+2. Validate that drift has been resolved in next monitoring cycle
+3. Update baseline data if needed
+4. Review drift detection thresholds if false positives detected
+
+====================================================================================================

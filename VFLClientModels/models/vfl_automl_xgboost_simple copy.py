@@ -10,6 +10,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.keras import layers, models
+import keras_tuner as kt
 
 # ===================== Logging Setup =====================
 def setup_logging():
@@ -24,14 +25,14 @@ def setup_logging():
     console_handler.setFormatter(log_format)
     logger.addHandler(console_handler)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_handler = RotatingFileHandler(f'logs/vfl_automl_xgboost_simple_{timestamp}.log', maxBytes=10*1024*1024, backupCount=3, encoding='utf-8')
+    file_handler = RotatingFileHandler(f'VFLClientModels/logs/vfl_automl_xgboost_simple_{timestamp}.log', maxBytes=10*1024*1024, backupCount=3, encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(log_format)
     logger.addHandler(file_handler)
     tf.get_logger().setLevel('ERROR')
     logger.info("=" * 80)
     logger.info("VFL AutoML XGBoost Simple Logging Initialized")
-    logger.info(f"Log file: logs/vfl_automl_xgboost_simple_{timestamp}.log")
+    logger.info(f"Log file: VFLClientModels/logs/vfl_automl_xgboost_simple_{timestamp}.log")
     logger.info(f"Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 80)
     return logger
@@ -45,12 +46,19 @@ MC_DROPOUT_SAMPLES = 30
 CONFIDENCE_INTERVALS = [68, 95]
 MIN_CONFIDENCE_THRESHOLD = 0.7
 
+# ===================== AutoML Config =====================
+AUTOML_TRIALS = 10
+AUTOML_SAMPLE_SIZE = 5000
+AUTOML_EPOCHS_PER_TRIAL = 20
+FINAL_EPOCHS = 300
+FINAL_SAMPLE_SIZE = 50000
+
 # ===================== XGBoost Credit Card Feature Extraction =====================
 def load_xgboost_credit_card_model():
-    model_path = 'VFLClientModels/models/saved_models/credit_card_xgboost_independent.pkl'
-    scaler_path = 'VFLClientModels/models/saved_models/credit_card_scaler.pkl'
-    feature_names_path = 'VFLClientModels/models/saved_models/credit_card_xgboost_feature_names.npy'
-    pca_path = 'VFLClientModels/models/saved_models/credit_card_xgboost_pca.pkl'
+    model_path = 'VFLClientModels/saved_models/credit_card_xgboost_independent.pkl'
+    scaler_path = 'VFLClientModels/saved_models/credit_card_scaler.pkl'
+    feature_names_path = 'VFLClientModels/saved_models/credit_card_xgboost_feature_names.npy'
+    pca_path = 'VFLClientModels/saved_models/credit_card_xgboost_pca.pkl'
     model_data = joblib.load(model_path)
     if isinstance(model_data, dict):
         classifier = model_data['classifier']
@@ -111,9 +119,9 @@ def get_penultimate_layer_model(model):
 # ===================== Data Loading and Preprocessing =====================
 def load_client_models():
     from tensorflow.keras.models import load_model
-    auto_loans_model = load_model('VFLClientModels/models/saved_models/auto_loans_model.keras', compile=False)
-    digital_bank_model = load_model('VFLClientModels/models/saved_models/digital_bank_model.keras', compile=False)
-    home_loans_model = load_model('VFLClientModels/models/saved_models/home_loans_model.keras', compile=False)
+    auto_loans_model = load_model('VFLClientModels/saved_models/auto_loans_model.keras', compile=False)
+    digital_bank_model = load_model('VFLClientModels/saved_models/digital_bank_model.keras', compile=False)
+    home_loans_model = load_model('VFLClientModels/saved_models/home_loans_model.keras', compile=False)
     credit_card_model = load_xgboost_credit_card_model()
     return auto_loans_model, digital_bank_model, home_loans_model, credit_card_model
 
@@ -365,6 +373,146 @@ def predict_credit_score_by_tax_id(tax_id, customer_data, models, scalers, featu
     logger.info(f"Placeholder prediction for tax ID {tax_id}: 700 (assuming a default score)")
     return 700, 0.95 # Placeholder confidence
 
+# ===================== AutoML Hypermodel =====================
+class VFLHyperModel(kt.HyperModel):
+    def __init__(self, input_dim):
+        self.input_dim = input_dim
+        
+    def build(self, hp):
+        """Build a hyperparameter-tunable VFL model"""
+        model = tf.keras.Sequential()
+        
+        # Input layer
+        model.add(tf.keras.layers.InputLayer(input_shape=(self.input_dim,)))
+        model.add(tf.keras.layers.BatchNormalization())
+        
+        # First dense layer
+        units_1 = hp.Int('units_1', min_value=32, max_value=256, step=32)
+        model.add(tf.keras.layers.Dense(units_1, activation='relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        
+        # Dropout rate for first layer
+        dropout_1 = hp.Float('dropout_1', min_value=0.1, max_value=0.5, step=0.1)
+        model.add(tf.keras.layers.Dropout(dropout_1))
+        
+        # Second dense layer
+        units_2 = hp.Int('units_2', min_value=16, max_value=128, step=16)
+        model.add(tf.keras.layers.Dense(units_2, activation='relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        
+        # Dropout rate for second layer
+        dropout_2 = hp.Float('dropout_2', min_value=0.1, max_value=0.5, step=0.1)
+        model.add(tf.keras.layers.Dropout(dropout_2))
+        
+        # Optional third layer
+        if hp.Boolean('use_third_layer'):
+            units_3 = hp.Int('units_3', min_value=8, max_value=64, step=8)
+            model.add(tf.keras.layers.Dense(units_3, activation='relu'))
+            model.add(tf.keras.layers.BatchNormalization())
+            dropout_3 = hp.Float('dropout_3', min_value=0.1, max_value=0.5, step=0.1)
+            model.add(tf.keras.layers.Dropout(dropout_3))
+        
+        # Output layer
+        model.add(tf.keras.layers.Dense(1, activation='linear'))
+        
+        # Compile with tunable learning rate
+        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log')
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        
+        model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+        return model
+
+def run_automl_search(X_train, y_train, X_val, y_val, input_dim):
+    """Run AutoML search to find the best model architecture"""
+    logger.info("Starting AutoML hyperparameter search...")
+    
+    # Create hypermodel
+    hypermodel = VFLHyperModel(input_dim)
+    
+    # Create tuner
+    os.makedirs('automl_results', exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    tuner = kt.Hyperband(
+        hypermodel,
+        objective=kt.Objective('val_mae', direction='min'),
+        max_epochs=AUTOML_EPOCHS_PER_TRIAL,
+        factor=3,
+        directory='automl_results',
+        project_name=f'vfl_xgboost_search_{timestamp}',
+        overwrite=True
+    )
+    
+    # Define callbacks
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss', patience=3, restore_best_weights=True, verbose=0)
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6, verbose=0)
+    
+    # Run search
+    logger.info(f"Running {AUTOML_TRIALS} trials with {AUTOML_EPOCHS_PER_TRIAL} epochs per trial...")
+    tuner.search(
+        X_train, y_train,
+        epochs=AUTOML_EPOCHS_PER_TRIAL,
+        validation_data=(X_val, y_val),
+        batch_size=256,
+        callbacks=[early_stopping, reduce_lr],
+        verbose=1
+    )
+    
+    # Get best model
+    best_model = tuner.get_best_models(1)[0]
+    best_hyperparameters = tuner.get_best_hyperparameters(1)[0]
+    
+    logger.info("Best hyperparameters found:")
+    for param, value in best_hyperparameters.values.items():
+        logger.info(f"  {param}: {value}")
+    
+    return best_model, best_hyperparameters, tuner
+
+def build_vfl_model_with_hyperparameters(input_dim, hyperparameters):
+    """Build a VFL model using the best hyperparameters found by AutoML"""
+    model = tf.keras.Sequential()
+    
+    # Input layer
+    model.add(tf.keras.layers.InputLayer(input_shape=(input_dim,)))
+    model.add(tf.keras.layers.BatchNormalization())
+    
+    # First dense layer
+    units_1 = hyperparameters.values['units_1']
+    model.add(tf.keras.layers.Dense(units_1, activation='relu'))
+    model.add(tf.keras.layers.BatchNormalization())
+    
+    # Dropout rate for first layer
+    dropout_1 = hyperparameters.values['dropout_1']
+    model.add(tf.keras.layers.Dropout(dropout_1))
+    
+    # Second dense layer
+    units_2 = hyperparameters.values['units_2']
+    model.add(tf.keras.layers.Dense(units_2, activation='relu'))
+    model.add(tf.keras.layers.BatchNormalization())
+    
+    # Dropout rate for second layer
+    dropout_2 = hyperparameters.values['dropout_2']
+    model.add(tf.keras.layers.Dropout(dropout_2))
+    
+    # Optional third layer
+    if hyperparameters.values.get('use_third_layer', False):
+        units_3 = hyperparameters.values['units_3']
+        model.add(tf.keras.layers.Dense(units_3, activation='relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        dropout_3 = hyperparameters.values['dropout_3']
+        model.add(tf.keras.layers.Dropout(dropout_3))
+    
+    # Output layer
+    model.add(tf.keras.layers.Dense(1, activation='linear'))
+    
+    # Compile with best learning rate
+    learning_rate = hyperparameters.values['learning_rate']
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    
+    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+    return model
+
 def build_vfl_model(input_dim):
     """Builds a simple VFL model similar to vfl_automl_model.py"""
     model = models.Sequential([
@@ -397,51 +545,80 @@ def mc_dropout_intervals(model, X, n_samples=30, ci_levels=[68, 95]):
 
 def run_training():
     logger.info("Starting VFL AutoML XGBoost Simple Training...")
-    (X_train, X_test, y_train, y_test, ids_train, ids_test, 
-     auto_scaler, digital_scaler, home_scaler, _, 
+    
+    # Step 1: AutoML Search with smaller dataset
+    logger.info("Step 1: Running AutoML search to find best architecture...")
+    (X_train_automl, X_test_automl, y_train_automl, y_test_automl, ids_train_automl, ids_test_automl, 
+     auto_scaler_automl, digital_scaler_automl, home_scaler_automl, _, 
      auto_repr_size, digital_repr_size, home_repr_size, credit_card_repr_size,
-     X_combined, y_combined, ids_combined) = load_and_preprocess_data(sample_size=10000)
+     X_combined_automl, y_combined_automl, ids_combined_automl) = load_and_preprocess_data(sample_size=AUTOML_SAMPLE_SIZE)
+
+    # Split for AutoML validation
+    X_train_automl, X_val_automl, y_train_automl, y_val_automl = train_test_split(
+        X_train_automl, y_train_automl, test_size=0.2, random_state=RANDOM_SEED, 
+        stratify=pd.cut(y_train_automl, bins=5, labels=False)
+    )
+
+    input_dim = X_train_automl.shape[1]
+    
+    # Run AutoML search
+    best_model, best_hyperparameters, tuner = run_automl_search(
+        X_train_automl, y_train_automl, X_val_automl, y_val_automl, input_dim
+    )
+    
+    logger.info("AutoML search completed. Best model architecture found.")
+    
+    # Step 2: Train final model with best architecture and full dataset
+    logger.info("Step 2: Training final model with best architecture and full dataset...")
+    (X_train_final, X_test_final, y_train_final, y_test_final, ids_train_final, ids_test_final, 
+     auto_scaler_final, digital_scaler_final, home_scaler_final, _, 
+     auto_repr_size, digital_repr_size, home_repr_size, credit_card_repr_size,
+     X_combined_final, y_combined_final, ids_combined_final) = load_and_preprocess_data(sample_size=FINAL_SAMPLE_SIZE)
 
     # Save fitted scalers for inference
     import joblib
-    joblib.dump(auto_scaler, 'VFLClientModels/models/saved_models/auto_loans_scaler.pkl')
+    joblib.dump(auto_scaler_final, 'VFLClientModels/saved_models/auto_loans_scaler.pkl')
     logger.info('Saved auto_loans_scaler.pkl')
-    joblib.dump(digital_scaler, 'VFLClientModels/models/saved_models/digital_bank_scaler.pkl')
+    joblib.dump(digital_scaler_final, 'VFLClientModels/saved_models/digital_bank_scaler.pkl')
     logger.info('Saved digital_bank_scaler.pkl')
-    joblib.dump(home_scaler, 'VFLClientModels/models/saved_models/home_loans_scaler.pkl')
+    joblib.dump(home_scaler_final, 'VFLClientModels/saved_models/home_loans_scaler.pkl')
     logger.info('Saved home_loans_scaler.pkl')
 
-    input_dim = X_train.shape[1]
-    model = build_vfl_model(input_dim)
-    logger.info(model.summary())
+    # Build final model with best architecture
+    final_model = build_vfl_model_with_hyperparameters(input_dim, best_hyperparameters)
+    logger.info("Final model architecture:")
+    logger.info(final_model.summary())
 
-    # Train the model
+    # Train the final model
     early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=5, restore_best_weights=True, verbose=2)
+        monitor='val_loss', patience=10, restore_best_weights=True, verbose=2)
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6, verbose=2)
-    model.fit(
-        X_train, y_train,
-        epochs=300,
+    
+    logger.info(f"Training final model for {FINAL_EPOCHS} epochs with {FINAL_SAMPLE_SIZE} samples...")
+    final_model.fit(
+        X_train_final, y_train_final,
+        epochs=FINAL_EPOCHS,
         batch_size=256,
         validation_split=0.2,
         verbose=2,
         callbacks=[early_stopping, reduce_lr]
     )
-    test_loss, test_mae = model.evaluate(X_test, y_test, verbose=2)
-    logger.info(f'Test Loss: {test_loss}, Test MAE: {test_mae}')
+    
+    test_loss, test_mae = final_model.evaluate(X_test_final, y_test_final, verbose=2)
+    logger.info(f'Final Test Loss: {test_loss}, Final Test MAE: {test_mae}')
 
     # Predict and cache results for test set
-    y_pred = model.predict(X_test).flatten()
-    mean_pred, intervals = mc_dropout_intervals(model, X_test, n_samples=MC_DROPOUT_SAMPLES, ci_levels=[68, 95])
+    y_pred = final_model.predict(X_test_final).flatten()
+    mean_pred, intervals = mc_dropout_intervals(final_model, X_test_final, n_samples=MC_DROPOUT_SAMPLES, ci_levels=[68, 95])
     global _prediction_cache
     _prediction_cache = {}
-    for i, idx in enumerate(range(len(X_test))):
-        tax_id = ids_test[idx]
+    for i, idx in enumerate(range(len(X_test_final))):
+        tax_id = ids_test_final[idx]
         result = {
             'tax_id': tax_id,
             'predicted': float(mean_pred[i]),
-            'actual': float(y_test[idx]),
+            'actual': float(y_test_final[idx]),
             '68_CI': (float(intervals[68][0][i]), float(intervals[68][1][i])),
             '95_CI': (float(intervals[95][0][i]), float(intervals[95][1][i])),
             'deterministic': float(y_pred[i])
@@ -451,13 +628,17 @@ def run_training():
     _save_prediction_cache()
     logger.info(f"Saved predictions for {len(_prediction_cache)} test customers to cache.")
 
-    # Save model
-    model.save('VFLClientModels/models/saved_models/vfl_automl_xgboost_simple_model.keras')
-    logger.info('Model saved to VFLClientModels/models/saved_models/vfl_automl_xgboost_simple_model.keras')
+    # Save final model
+    final_model.save('VFLClientModels/saved_models/vfl_automl_xgboost_simple_model.keras')
+    logger.info('Final model saved to VFLClientModels/saved_models/vfl_automl_xgboost_simple_model.keras')
+    
+    # Save best hyperparameters
+    joblib.dump(best_hyperparameters.values, 'VFLClientModels/saved_models/best_hyperparameters.pkl')
+    logger.info('Best hyperparameters saved to VFLClientModels/saved_models/best_hyperparameters.pkl')
 
 
 # Persistent cache file path
-_CACHE_PATH = 'VFLClientModels/models/saved_models/prediction_cache.pkl'
+_CACHE_PATH = 'VFLClientModels/saved_models/prediction_cache.pkl'
 
 # In-memory cache for predictions
 if os.path.exists(_CACHE_PATH):
