@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  # --------------------------
-  # AUTO LOAN DRIFT DETECTOR
-  # --------------------------
+  # --------------------------------
+  # AUTO LOAN DRIFT DETECTOR + TRAIN
+  # --------------------------------
   detect-auto-loan-drift:
     runs-on: ubuntu-latest
     outputs:
@@ -46,9 +46,9 @@ jobs:
       - name: Retrain Auto Loan Model
         run: python VFLClientModels/models/auto_loans_model.py
 
-  # --------------------------
-  # CREDIT CARD DRIFT DETECTOR
-  # --------------------------
+  # -------------------------------------
+  # CREDIT CARD DRIFT DETECTOR + TRAIN
+  # -------------------------------------
   detect-credit-card-drift:
     runs-on: ubuntu-latest
     outputs:
@@ -87,11 +87,11 @@ jobs:
 
       - name: Retrain Credit Card Model
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/credit_card_xgboost_model.py
+        # run: python VFLClientModels/models/credit_card_xgboost_model.py
 
-  # --------------------------
-  # HOME LOAN DRIFT DETECTOR
-  # --------------------------
+  # -----------------------------------
+  # HOME LOAN DRIFT DETECTOR + TRAIN
+  # -----------------------------------
   detect-home-loan-drift:
     runs-on: ubuntu-latest
     outputs:
@@ -130,12 +130,11 @@ jobs:
 
       - name: Retrain Home Loan Model
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/home_loans_model.py
+        # run: python VFLClientModels/models/home_loans_model.py
 
-
-  # --------------------------
-  # DIGITAL SAVINGS DRIFT DETECTOR
-  # --------------------------
+  # ----------------------------------------
+  # DIGITAL SAVINGS DRIFT DETECTOR + TRAIN
+  # ----------------------------------------
   detect-digital-savings-drift:
     runs-on: ubuntu-latest
     outputs:
@@ -175,6 +174,9 @@ jobs:
       - name: Retrain Digital Savings Model
         run: python VFLClientModels/models/digital_savings_model.py
 
+  # -------------------------
+  # VFL MASTER RETRAINING
+  # -------------------------
   retrain-vfl-model:
     needs:
       - detect-auto-loan-drift
@@ -185,11 +187,6 @@ jobs:
       - retrain-credit-card
       - retrain-home-loan
       - retrain-digital-savings
-    if: |
-      needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected == 'true' ||
-      needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true' ||
-      needs.detect-home-loan-drift.outputs.home_loan_drift_detected == 'true' ||
-      needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -202,6 +199,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Retrain VFL model
-        run: python VFLClientModels\models\vfl_automl_xgboost_homoenc_dp.py
-        #run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+      - name: Always run debug info
+        run: |
+          echo "Auto Loan Drift: ${{ needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected }}"
+          echo "Credit Card Drift: ${{ needs.detect-credit-card-drift.outputs.credit_card_drift_detected }}"
+          echo "Home Loan Drift: ${{ needs.detect-home-loan-drift.outputs.home_loan_drift_detected }}"
+          echo "Digital Savings Drift: ${{ needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected }}"
+
+      - name: Conditional VFL retraining
+        run: |
+          echo "Evaluating condition..."
+          if [ "${{ needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected }}" = "true" ] ||
+             [ "${{ needs.detect-credit-card-drift.outputs.credit_card_drift_detected }}" = "true" ] ||
+             [ "${{ needs.detect-home-loan-drift.outputs.home_loan_drift_detected }}" = "true" ] ||
+             [ "${{ needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected }}" = "true" ]; then
+            echo "Triggering VFL retraining..."
+            python VFLClientModels/models/vfl_automl_xgboost_homoenc_dp.py
+          else
+            echo "No drift detected. Skipping VFL retraining."
+          fi
