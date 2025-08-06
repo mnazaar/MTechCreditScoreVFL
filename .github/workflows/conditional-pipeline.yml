@@ -239,3 +239,75 @@ jobs:
       - name: Conditional VFL retraining
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         # run: python VFLClientModels/models/credit_card_xgboost_model.py
+
+  # -------------------------
+  # VFL Explanations Dataset Regeneration
+  # -------------------------
+  regenerate-auto-loans-explanations:
+    needs: retrain-vfl-model
+    if: needs.retrain-auto-loan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Regenerate Auto Loans VFL Explanations Dataset
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/explanations/privateexplanations/auto_loans_feature_predictor_dataset.py
+
+  regenerate-credit-card-explanations:
+    needs: retrain-vfl-model
+    if: needs.retrain-credit-card.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Regenerate Credit Card VFL Explanations Dataset
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/explanations/privateexplanations/credit_card_feature_predictor_dataset.py
+
+  regenerate-digital-savings-explanations:
+    needs: retrain-vfl-model
+    if: needs.retrain-digital-savings.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Regenerate Digital Savings VFL Explanations Dataset
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/explanations/privateexplanations/digital_bank_feature_predictor_dataset.py
+
+  regenerate-home-loans-explanations:
+    needs: retrain-vfl-model
+    if: needs.retrain-home-loan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Regenerate Home Loans VFL Explanations Dataset
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
+
+
+
+
+
