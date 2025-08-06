@@ -4,7 +4,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-auto-loans-drift-detector:
+  # --------------------------
+  # AUTO LOAN DRIFT DETECTOR
+  # --------------------------
+  detect-auto-loan-drift:
     runs-on: ubuntu-latest
     outputs:
       auto_loan_drift_detected: ${{ steps.check.outputs.auto_loan_drift_detected }}
@@ -25,9 +28,48 @@ jobs:
           result=$(python VFLClientModels/drift_detection_retraining/auto_loans_drift_detector_pipeline.py | tail -n 1)
           echo "$result" >> $GITHUB_OUTPUT
 
-  run-auto-loans-model-retraining:
-    needs: run-auto-loans-drift-detector
-    if: needs.run-auto-loans-drift-detector.outputs.auto_loan_drift_detected == 'true'
+  retrain-auto-loan:
+    needs: detect-auto-loan-drift
+    if: needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run next stage simulation
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+
+  # --------------------------
+  # CREDIT CARD DRIFT DETECTOR
+  # --------------------------
+  detect-credit-card-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      credit_card_drift_detected: ${{ steps.check.outputs.credit_card_drift_detected }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run credit card loan drift detection
+        id: check
+        run: |
+          result=$(python VFLClientModels/drift_detection_retraining/xgboost_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
+
+  retrain-credit-card:
+    needs: detect-credit-card-drift
+    if: needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
