@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-score-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: credit-score-app
+      version: "v1"
+  template:
+    metadata:
+      labels:
+        app: credit-score-app
+        version: "v1"
+    spec:
+      containers:
+        - name: credit-score-container
+          image: nazaarblue/vfl_creditscorepredictor:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5001
+            - containerPort: 8501
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "750m"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: credit-score-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: credit-score-app
+  ports:
+    - name: http-app
+      protocol: TCP
+      port: 80
+      targetPort: 5001
+    - name: streamlit-app
+      protocol: TCP
+      port: 8501
+      targetPort: 8501
