@@ -463,3 +463,7 @@ if __name__ == "__main__":
     finally:
         print("\n" + "=" * 60)
         print("🏁 Pipeline execution finished") 
+        if drift_detected:
+            print("auto_loan_drift_detected=true")
+        else:
+            print("auto_loan_drift_detected=true")
