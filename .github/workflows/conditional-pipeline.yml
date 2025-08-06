@@ -1,4 +1,4 @@
-name: Credit Score Model Retraining Pipeline
+name: Credit Score VFL Retraining Pipeline
 
 on:
   workflow_dispatch:
@@ -70,6 +70,85 @@ jobs:
   retrain-credit-card:
     needs: detect-credit-card-drift
     if: needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run next stage simulation
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+
+  # --------------------------
+  # HOME LOAN DRIFT DETECTOR
+  # --------------------------
+  detect-home-loan-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      home_loan_drift_detected: ${{ steps.check.outputs.home_loan_drift_detected }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run home loan drift detection
+        id: check
+        run: |
+          result=$(python VFLClientModels/drift_detection_retraining/home_loans_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
+
+  retrain-home-loan:
+    needs: detect-home-loan-drift
+    if: needs.detect-home-loan-drift.outputs.home_loan_drift_detected == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run next stage simulation
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+
+
+  # --------------------------
+  # DIGITAL SAVINGS DRIFT DETECTOR
+  # --------------------------
+  detect-digital-savings-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      digital_savings_drift_detected: ${{ steps.check.outputs.digital_savings_drift_detected }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run digital savings drift detection
+        id: check
+        run: |
+          result=$(python VFLClientModels/drift_detection_retraining/digital_savings_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
+
+  retrain-digital-savings:
+    needs: detect-digital-savings-drift
+    if: needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
