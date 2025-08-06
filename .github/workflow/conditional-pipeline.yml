@@ -1,0 +1,47 @@
+name: Conditional Pipeline
+
+on:
+  push:
+    paths:
+      - '**.py'
+
+jobs:
+  run-auto-loans-drift-detector:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run abc.py and set output
+        id: check
+        run: |
+          python abc.py
+          if [ $? -eq 0 ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  run-auto-loans-model-retraining:
+    needs: run-auto-loans-drift-detector
+    if: needs.run-auto-loans-drift-detector.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run next stage simulation
+        run: python pipeline_next_stage_simulation.py

@@ -1,0 +1,33 @@
+{
+  "retraining_schedule": {
+    "frequency": "daily",
+    "time": "02:00",
+    "timezone": "UTC"
+  },
+  "drift_threshold": 3,
+  "model_backup": true,
+  "performance_threshold": 0.1,
+  "retraining_scripts": {
+    "auto_loans": "VFLClientModels/models/auto_loans_model.py",
+    "digital_savings": "VFLClientModels/models/digital_savings_model.py",
+    "home_loans": "VFLClientModels/models/home_loans_model.py",
+    "credit_card": "VFLClientModels/models/credit_card_xgboost_model.py",
+    "vfl_central": "VFLClientModels/models/vfl_automl_xgboost_model.py"
+  },
+  "notifications": {
+    "email": {
+      "enabled": true,
+      "recipients": ["admin@company.com"],
+      "smtp_server": "smtp.company.com"
+    },
+    "slack": {
+      "enabled": false,
+      "webhook_url": ""
+    }
+  },
+  "rollback": {
+    "enabled": true,
+    "max_rollbacks": 3,
+    "performance_threshold": 0.05
+  }
+} 
