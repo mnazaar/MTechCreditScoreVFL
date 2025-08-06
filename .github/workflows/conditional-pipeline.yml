@@ -80,7 +80,7 @@ jobs:
           python-version: '3.10'
 
       - name: Retrain Credit Card Model
-        run: python VFLClientModels/models/auto_loans_model.py
+        run: python VFLClientModels/models/credit_card_xgboost_model.py
 
 
   # --------------------------
@@ -101,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run home loan drift detection
+      - name: Run Home Loan Drift Detection
         id: check
         run: |
           result=$(python VFLClientModels/drift_detection_retraining/home_loans_drift_detector_pipeline.py | tail -n 1)
@@ -119,8 +119,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run next stage simulation
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+      - name: Retrain Home Loan Model
+        run: python VFLClientModels/models/home_loans_model.py
 
 
   # --------------------------
@@ -141,7 +141,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run digital savings drift detection
+      - name: Run Digital Savings Drift Detection
         id: check
         run: |
           result=$(python VFLClientModels/drift_detection_retraining/digital_savings_drift_detector_pipeline.py | tail -n 1)
@@ -159,5 +159,5 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run next stage simulation
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+      - name: Retrain Digital Savings Model
+        run: python VFLClientModels/models/digital_savings_model.py
