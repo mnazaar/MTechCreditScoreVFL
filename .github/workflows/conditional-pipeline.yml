@@ -19,19 +19,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run abc.py and set output
+      - name: Run auto loan drift detection
         id: check
         run: |
-          python abc.py
+          python VFLClientModels\drift_detection_retraining\auto_loans_drift_detector_pipeline.py
           if [ $? -eq 0 ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "auto_loan_drift_detected=true" >> $GITHUB_OUTPUT
           else
-            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "auto_loan_drift_detected=false" >> $GITHUB_OUTPUT
           fi
 
   run-auto-loans-model-retraining:
     needs: run-auto-loans-drift-detector
-    if: needs.run-auto-loans-drift-detector.outputs.should_run == 'true'
+    if: needs.run-auto-loans-drift-detector.outputs.auto_loan_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
