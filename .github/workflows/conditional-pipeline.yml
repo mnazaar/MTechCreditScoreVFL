@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Run Auto Loan Drift Detection
         id: check
@@ -44,8 +44,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Retrain Auto Loan Model
         run: python VFLClientModels/models/auto_loans_model.py
@@ -69,8 +69,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Run Credit Card Drift Detection
         id: check
@@ -94,11 +94,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Retrain Credit Card Model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         # run: python VFLClientModels/models/credit_card_xgboost_model.py
 
       - name: Set retrained output
@@ -120,8 +119,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Run Home Loan Drift Detection
         id: check
@@ -145,11 +144,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Retrain Home Loan Model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         # run: python VFLClientModels/models/home_loans_model.py
 
       - name: Set retrained output
@@ -171,8 +169,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Run Digital Savings Drift Detection
         id: check
@@ -198,8 +196,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Retrain Digital Savings Model
         run: python VFLClientModels/models/digital_savings_model.py
@@ -233,11 +231,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Conditional VFL retraining
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         # run: python VFLClientModels/models/credit_card_xgboost_model.py
 
   # -------------------------
@@ -259,11 +256,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Regenerate Auto Loans VFL Explanations Dataset
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/explanations/privateexplanations/auto_loans_feature_predictor_dataset.py
+        run: python VFLClientModels/models/explanations/privateexplanations/auto_loans_feature_predictor_dataset.py
 
   regenerate-credit-card-explanations:
     needs: 
@@ -281,11 +279,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Regenerate Credit Card VFL Explanations Dataset
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/explanations/privateexplanations/credit_card_feature_predictor_dataset.py
+        run: python VFLClientModels/models/explanations/privateexplanations/credit_card_feature_predictor_dataset.py
 
   regenerate-digital-savings-explanations:
     needs: 
@@ -304,11 +303,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Regenerate Digital Savings VFL Explanations Dataset
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/explanations/privateexplanations/digital_bank_feature_predictor_dataset.py
+        run: python VFLClientModels/models/explanations/privateexplanations/digital_bank_feature_predictor_dataset.py
 
   regenerate-home-loans-explanations:
     needs: 
@@ -326,11 +326,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Regenerate Home Loans VFL Explanations Dataset
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
+        run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
 
   train-auto-loans-explanations:
     needs: regenerate-auto-loans-explanations
@@ -346,11 +347,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Train Auto Loans Explanations Model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/drift_detection_retraining/train_auto_loans_feature_predictor.py
+        run: python VFLClientModels/drift_detection_retraining/train_auto_loans_feature_predictor.py
 
   train-credit-card-explanations:
     needs: regenerate-credit-card-explanations  
@@ -366,11 +368,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Train Credit Card Explanations Model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/drift_detection_retraining/train_credit_card_feature_predictor.py
+        run: python VFLClientModels/drift_detection_retraining/train_credit_card_feature_predictor.py
 
   train-digital-savings-explanations:
     needs: regenerate-digital-savings-explanations
@@ -386,11 +389,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Train Digital Savings Explanations Model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/drift_detection_retraining/train_digital_bank_feature_predictor.py
+        run: python VFLClientModels/drift_detection_retraining/train_digital_bank_feature_predictor.py
 
   train-home-loans-explanations:
     needs: regenerate-home-loans-explanations
@@ -406,11 +410,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Train Home Loans Explanations Model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/drift_detection_retraining/train_home_loans_feature_predictor.py
+        run: python VFLClientModels/drift_detection_retraining/train_home_loans_feature_predictor.py
 
 
 
