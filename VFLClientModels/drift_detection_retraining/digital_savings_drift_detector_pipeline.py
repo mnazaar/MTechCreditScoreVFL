@@ -404,7 +404,7 @@ if __name__ == "__main__":
     CONFIG = {
         'data_path': 'VFLClientModels/dataset/data/banks/digital_savings_bank.csv',
         'baseline_data_path': 'VFLClientModels/dataset/data/banks/digital_savings_bank_baseline.csv',
-        'model_path': 'VFLClientModels/saved_models/digital_savings_model.keras',
+        'model_path': 'VFLClientModels/saved_models/digital_bank_model.keras',
         'retraining_script': 'VFLClientModels/models/digital_savings_model.py',
         'detector_class': 'DigitalSavingsDriftDetector'
     }
