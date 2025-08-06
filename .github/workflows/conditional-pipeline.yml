@@ -211,7 +211,7 @@ jobs:
   # -------------------------
   retrain-vfl-model:
     needs:
-      - detect-digital-savings-drift
+      - retrain-home-loan
     
     
     runs-on: ubuntu-latest
