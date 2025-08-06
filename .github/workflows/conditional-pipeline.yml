@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Run Auto Loan Drift Detection
         id: check
@@ -32,6 +32,10 @@ jobs:
     needs: detect-auto-loan-drift
     if: needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected == 'true'
     runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
     steps:
       - uses: actions/checkout@v3
 
@@ -40,12 +44,16 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Retrain Auto Loan Model
         run: python VFLClientModels/models/auto_loans_model.py
 
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
+        
   # -------------------------------------
   # CREDIT CARD DRIFT DETECTOR + TRAIN
   # -------------------------------------
@@ -61,8 +69,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Run Credit Card Drift Detection
         id: check
@@ -74,6 +82,10 @@ jobs:
     needs: detect-credit-card-drift
     if: needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true'
     runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
     steps:
       - uses: actions/checkout@v3
 
@@ -82,13 +94,17 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Retrain Credit Card Model
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         # run: python VFLClientModels/models/credit_card_xgboost_model.py
 
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
+        
   # -----------------------------------
   # HOME LOAN DRIFT DETECTOR + TRAIN
   # -----------------------------------
@@ -104,8 +120,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Run Home Loan Drift Detection
         id: check
@@ -117,6 +133,10 @@ jobs:
     needs: detect-home-loan-drift
     if: needs.detect-home-loan-drift.outputs.home_loan_drift_detected == 'true'
     runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
     steps:
       - uses: actions/checkout@v3
 
@@ -125,12 +145,16 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Retrain Home Loan Model
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         # run: python VFLClientModels/models/home_loans_model.py
+
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
 
   # ----------------------------------------
   # DIGITAL SAVINGS DRIFT DETECTOR + TRAIN
@@ -147,8 +171,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Run Digital Savings Drift Detection
         id: check
@@ -160,6 +184,10 @@ jobs:
     needs: detect-digital-savings-drift
     if: needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected == 'true'
     runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
     steps:
       - uses: actions/checkout@v3
 
@@ -168,26 +196,34 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Retrain Digital Savings Model
         run: python VFLClientModels/models/digital_savings_model.py
+
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
 
   # -------------------------
   # VFL MASTER RETRAINING
   # -------------------------
   retrain-vfl-model:
     needs:
-      - detect-auto-loan-drift
-      - detect-credit-card-drift
-      - detect-home-loan-drift
-      - detect-digital-savings-drift
       - retrain-auto-loan
       - retrain-credit-card
       - retrain-home-loan
       - retrain-digital-savings
+    
+    if: |
+      needs.retrain-auto-loan.outputs.retrained == 'true' ||
+      needs.retrain-credit-card.outputs.retrained == 'true' ||
+      needs.retrain-home-loan.outputs.retrained == 'true' ||
+      needs.retrain-digital-savings.outputs.retrained == 'true'      
+    
     runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v3
 
@@ -196,8 +232,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
 
       - name: Always run debug info
         run: |
@@ -206,15 +242,13 @@ jobs:
           echo "Home Loan Drift: ${{ needs.detect-home-loan-drift.outputs.home_loan_drift_detected }}"
           echo "Digital Savings Drift: ${{ needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected }}"
 
-      - name: Conditional VFL retraining
+      - name: Show retraining status
         run: |
-          echo "Evaluating condition..."
-          if [ "${{ needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected }}" = "true" ] ||
-             [ "${{ needs.detect-credit-card-drift.outputs.credit_card_drift_detected }}" = "true" ] ||
-             [ "${{ needs.detect-home-loan-drift.outputs.home_loan_drift_detected }}" = "true" ] ||
-             [ "${{ needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected }}" = "true" ]; then
-            echo "Triggering VFL retraining..."
-            python VFLClientModels/models/vfl_automl_xgboost_homoenc_dp.py
-          else
-            echo "No drift detected. Skipping VFL retraining."
-          fi
+          echo "Auto Loan retrained: ${{ needs.retrain-auto-loan.outputs.retrained }}"
+          echo "Credit Card retrained: ${{ needs.retrain-credit-card.outputs.retrained }}"
+          echo "Home Loan retrained: ${{ needs.retrain-home-loan.outputs.retrained }}"
+          echo "Digital Savings retrained: ${{ needs.retrain-digital-savings.outputs.retrained }}"
+
+      - name: Conditional VFL retraining
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        # run: python VFLClientModels/models/credit_card_xgboost_model.py

@@ -37,3 +37,5 @@ logger.addHandler(console_handler)
 logger.info("🚀 Pipeline Next Stage Simulation Started!")
 logger.info(f"📁 Log file created: {log_filepath}")
 logger.info("✨ This is executed")
+
+print("retrained=true")
