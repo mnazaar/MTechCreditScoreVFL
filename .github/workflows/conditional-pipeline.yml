@@ -247,6 +247,11 @@ jobs:
     needs: 
       - retrain-vfl-model
       - retrain-auto-loan
+
+    if: |
+      always() &&
+      (needs.retrain-auto-loan.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -264,6 +269,11 @@ jobs:
     needs: 
       - retrain-vfl-model
       - retrain-credit-card
+
+    if: |
+      always() &&
+      (needs.retrain-credit-card.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -281,6 +291,12 @@ jobs:
     needs: 
       - retrain-vfl-model
       - retrain-digital-savings
+
+    if: |
+      always() &&
+      (needs.retrain-digital-savings.result == 'success')
+    
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -298,6 +314,11 @@ jobs:
     needs: 
       - retrain-vfl-model
       - retrain-home-loan
+
+    if: |
+      always() &&
+      (needs.retrain-home-loan.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
