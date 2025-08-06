@@ -215,7 +215,8 @@ jobs:
       - retrain-digital-savings
 
     if: |
-      needs.retrain-home-loan.result == 'success' || needs.retrain-digital-savings.result == 'success'
+      always() &&
+      (needs.retrain-home-loan.result == 'success' || needs.retrain-digital-savings.result == 'success')
     
     runs-on: ubuntu-latest
     
