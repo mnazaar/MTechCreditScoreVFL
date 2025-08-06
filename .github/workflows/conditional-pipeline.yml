@@ -1,9 +1,7 @@
 name: Conditional Pipeline
 
 on:
-  push:
-    paths:
-      - '**.py'
+  workflow_dispatch:
 
 jobs:
   run-auto-loans-drift-detector:
