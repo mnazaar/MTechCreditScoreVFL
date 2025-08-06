@@ -466,4 +466,4 @@ if __name__ == "__main__":
         if drift_detected:
             print("auto_loan_drift_detected=true")
         else:
-            print("auto_loan_drift_detected=true")
+            print("auto_loan_drift_detected=false")
