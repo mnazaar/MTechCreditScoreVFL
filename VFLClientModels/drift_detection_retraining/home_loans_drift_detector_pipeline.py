@@ -13,14 +13,6 @@ warnings.filterwarnings('ignore')
 try:
     import tensorflow as tf
     from tensorflow.keras.models import load_model
-    
-    # Suppress TensorFlow warnings about AVX2 FMA and TensorRT
-    import os
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress warnings
-    
-    # Configure TensorFlow to use available optimizations
-    tf.config.optimizer.set_jit(True)
-    
     TENSORFLOW_AVAILABLE = True
 except ImportError:
     TENSORFLOW_AVAILABLE = False
@@ -115,13 +107,7 @@ class HomeLoansDriftDetector:
             message = ' '.join(str(arg) for arg in args)
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             logger.info(f"[{timestamp}] {message}")
-            # Ensure UTF-8 encoding for print statements
-            try:
-                self._original_print(*args, **kwargs)
-            except UnicodeEncodeError:
-                # Fallback for encoding issues
-                safe_message = message.encode('utf-8', errors='replace').decode('utf-8')
-                self._original_print(safe_message)
+            self._original_print(*args, **kwargs)
         
         # Replace print function
         import builtins
@@ -173,109 +159,88 @@ class HomeLoansDriftDetector:
             return np.random.random((len(data), 1))  # 1 output for home loan amount
         
         try:
-            # Check if model is properly loaded
-            if self.model is None:
-                self.logger.warning("Model not loaded, returning dummy predictions")
-                return np.random.random((len(data), 1))
+            # Create a copy to avoid modifying original data
+            data_copy = data.copy()
             
             # Select features if feature names are available
             if self.feature_names:
-                missing_features = [f for f in self.feature_names if f not in data.columns]
+                missing_features = [f for f in self.feature_names if f not in data_copy.columns]
                 if missing_features:
                     raise ValueError(f"Missing required features: {missing_features}")
-                data = data[self.feature_names]
+                data_copy = data_copy[self.feature_names]
             
-            # Log data info for debugging (only if verbose logging is enabled)
-            if len(data) > 1000:  # Only log for large datasets
-                self.logger.info(f"Data shape before processing: {data.shape}")
-                self.logger.info(f"Data types: {data.dtypes.to_dict()}")
+            # Handle null values - fill with 0 for numerical features
+            self.logger.info(f"Checking for null values in {len(data_copy.columns)} features...")
+            null_counts = data_copy.isnull().sum()
+            if null_counts.sum() > 0:
+                self.logger.warning(f"Found null values in data: {null_counts[null_counts > 0].to_dict()}")
+                # Fill null values with 0 for numerical features
+                data_copy = data_copy.fillna(0)
+                self.logger.info("Null values filled with 0")
             
-            # Ensure all data is numeric and handle any non-numeric values
-            for col in data.columns:
-                if data[col].dtype == 'object':
-                    if len(data) <= 1000:  # Only log for smaller datasets
-                        self.logger.info(f"Converting column {col} from object to numeric")
-                    # Try to convert to numeric, fill non-convertible values with 0
-                    data[col] = pd.to_numeric(data[col], errors='coerce').fillna(0)
+            # Convert to numeric, coercing errors to NaN then filling with 0
+            for col in data_copy.columns:
+                if data_copy[col].dtype == 'object':
+                    try:
+                        data_copy[col] = pd.to_numeric(data_copy[col], errors='coerce')
+                        data_copy[col] = data_copy[col].fillna(0)
+                        self.logger.info(f"Converted column '{col}' to numeric")
+                    except Exception as e:
+                        self.logger.warning(f"Could not convert column '{col}' to numeric: {e}")
+                        data_copy[col] = 0
             
-            # Convert to float32 for better TensorFlow compatibility
-            data = data.astype(np.float32)
+            # Ensure all data is float32 for TensorFlow compatibility
+            data_copy = data_copy.astype(np.float32)
+            
+            # Check for infinite values
+            if np.isinf(data_copy.values).any():
+                self.logger.warning("Found infinite values, replacing with 0")
+                data_copy = data_copy.replace([np.inf, -np.inf], 0)
             
             # Scale features
             if self.scaler:
-                data_scaled = self.scaler.transform(data)
+                try:
+                    data_scaled = self.scaler.transform(data_copy)
+                except Exception as e:
+                    self.logger.error(f"Error in scaling: {e}")
+                    # Fallback: use original data without scaling
+                    data_scaled = data_copy.values.astype(np.float32)
             else:
-                data_scaled = data.values
+                data_scaled = data_copy.values.astype(np.float32)
             
-            # Ensure data_scaled is float32
-            data_scaled = data_scaled.astype(np.float32)
+            # Final validation before prediction
+            if np.isnan(data_scaled).any():
+                self.logger.warning("Found NaN values in scaled data, replacing with 0")
+                data_scaled = np.nan_to_num(data_scaled, nan=0.0)
             
-            # Check for infinite or NaN values (only log if issues found)
-            if np.any(np.isnan(data_scaled)) or np.any(np.isinf(data_scaled)):
-                self.logger.warning("Found NaN or infinite values in data, replacing with 0")
-                data_scaled = np.nan_to_num(data_scaled, nan=0.0, posinf=0.0, neginf=0.0)
-            
-            # Check model input shape
-            if hasattr(self.model, 'input_shape'):
-                expected_input_shape = self.model.input_shape
-                if expected_input_shape and len(expected_input_shape) > 1:
-                    expected_features = expected_input_shape[1]
-                    actual_features = data_scaled.shape[1]
-                    if expected_features != actual_features:
-                        self.logger.warning(f"Model expects {expected_features} features, got {actual_features}")
-                        if actual_features > expected_features:
-                            data_scaled = data_scaled[:, :expected_features]
-                        elif actual_features < expected_features:
-                            # Pad with zeros
-                            padding = np.zeros((data_scaled.shape[0], expected_features - actual_features), dtype=np.float32)
-                            data_scaled = np.hstack([data_scaled, padding])
-            
-            # Ensure data is contiguous in memory
-            if not data_scaled.flags['C_CONTIGUOUS']:
-                data_scaled = np.ascontiguousarray(data_scaled)
-            
-            # Final validation - ensure data is properly formatted
-            if data_scaled.size == 0:
-                raise ValueError("Empty data array")
-            
-            # Ensure data is 2D
-            if len(data_scaled.shape) == 1:
-                data_scaled = data_scaled.reshape(-1, 1)
+            if np.isinf(data_scaled).any():
+                self.logger.warning("Found infinite values in scaled data, replacing with 0")
+                data_scaled = np.nan_to_num(data_scaled, posinf=0.0, neginf=0.0)
             
             # Make predictions
-            try:
-                # Try different input formats if the first fails
-                try:
-                    predictions = self.model.predict(data_scaled, verbose=0)
-                except Exception as format_error:
-                    self.logger.warning(f"First prediction attempt failed: {str(format_error)}")
-                    # Try with list format
-                    predictions = self.model.predict(data_scaled.tolist(), verbose=0)
-                
-                # Ensure predictions are numpy array
-                if hasattr(predictions, 'numpy'):
-                    predictions = predictions.numpy()
-                
-                return predictions
-                
-            except Exception as tf_error:
-                self.logger.error(f"TensorFlow prediction error: {str(tf_error)}")
-                self.logger.error(f"Data scaled info - Shape: {data_scaled.shape}, Type: {data_scaled.dtype}")
-                self.logger.error(f"Data scaled sample: {data_scaled[:2]}")
-                raise tf_error
+            self.logger.info(f"Making predictions on {len(data_scaled)} samples with shape {data_scaled.shape}")
+            predictions = self.model.predict(data_scaled, verbose=0)
+            
+            # Ensure predictions are valid
+            if np.isnan(predictions).any() or np.isinf(predictions).any():
+                self.logger.warning("Invalid predictions detected, replacing with 0")
+                predictions = np.nan_to_num(predictions, nan=0.0, posinf=0.0, neginf=0.0)
+            
+            return predictions
             
         except Exception as e:
-            self.logger.error(f"Error in predict_home_loans: {str(e)}")
-            self.logger.error(f"Data info - Shape: {data.shape}, Columns: {list(data.columns)}")
+            self.logger.error(f"Error getting predictions: {str(e)}")
+            self.logger.error(f"Data shape: {data.shape}, Data types: {data.dtypes.to_dict()}")
             self.logger.error(f"Data sample: {data.head(2).to_dict()}")
-            self.logger.warning("Returning dummy predictions due to prediction error")
+            
+            # Return dummy predictions as fallback
+            self.logger.warning("Returning dummy predictions due to error")
             return np.random.random((len(data), 1))
     
     def detect_home_loans_drift(self, 
                                current_data: pd.DataFrame,
                                baseline_data: pd.DataFrame,
-                               target_column: str = None,
-                               max_samples: int = 1000) -> Dict:
+                               target_column: str = None) -> Dict:
         """
         Detect drift specifically for Home Loans neural network model
         
@@ -283,21 +248,11 @@ class HomeLoansDriftDetector:
             current_data: Current data DataFrame
             baseline_data: Baseline data DataFrame
             target_column: Optional target column for performance drift
-            max_samples: Maximum number of samples to use for analysis (default: 1000)
             
         Returns:
             Dict containing drift detection results
         """
         self.logger.info("Starting Home Loans-specific drift detection...")
-        
-        # Sample data for faster processing
-        if len(current_data) > max_samples:
-            current_data = current_data.sample(n=max_samples, random_state=42)
-            self.logger.info(f"Sampled current data to {len(current_data):,} records for faster processing")
-        
-        if len(baseline_data) > max_samples:
-            baseline_data = baseline_data.sample(n=max_samples, random_state=42)
-            self.logger.info(f"Sampled baseline data to {len(baseline_data):,} records for faster processing")
         
         # Use feature names if available, otherwise use all columns
         feature_columns = self.feature_names if self.feature_names else current_data.columns.tolist()
@@ -410,8 +365,7 @@ NEXT STEPS:
     def is_drift_detected(self, 
                          current_data: pd.DataFrame,
                          baseline_data: pd.DataFrame,
-                         target_column: str = None,
-                         max_samples: int = 1000) -> Tuple[bool, str]:
+                         target_column: str = None) -> Tuple[bool, str]:
         """
         Simple method to check if drift is detected
         
@@ -419,7 +373,6 @@ NEXT STEPS:
             current_data: Current data DataFrame
             baseline_data: Baseline data DataFrame
             target_column: Optional target column
-            max_samples: Maximum number of samples to use for analysis (default: 1000)
             
         Returns:
             Tuple of (drift_detected: bool, report: str)
@@ -429,8 +382,7 @@ NEXT STEPS:
             drift_results = self.detect_home_loans_drift(
                 current_data=current_data,
                 baseline_data=baseline_data,
-                target_column=target_column,
-                max_samples=max_samples
+                target_column=target_column
             )
             
             # Generate report
@@ -459,8 +411,7 @@ NEXT STEPS:
 # Example usage function
 def detect_home_loans_drift(current_data_path: str,
                            baseline_data_path: str,
-                           model_path: str = None,
-                           max_samples: int = 1000) -> Tuple[bool, str]:
+                           model_path: str = None) -> Tuple[bool, str]:
     """
     Convenience function to detect drift in home loans neural network model
     
@@ -468,7 +419,6 @@ def detect_home_loans_drift(current_data_path: str,
         current_data_path: Path to current data CSV
         baseline_data_path: Path to baseline data CSV
         model_path: Path to saved Home Loans model
-        max_samples: Maximum number of samples to use for analysis (default: 1000)
         
     Returns:
         Tuple of (drift_detected: bool, report: str)
@@ -484,8 +434,7 @@ def detect_home_loans_drift(current_data_path: str,
     # Detect drift
     drift_detected, report = detector.is_drift_detected(
         current_data=current_data,
-        baseline_data=baseline_data,
-        max_samples=max_samples
+        baseline_data=baseline_data
     )
     
     # Restore original print function
@@ -510,14 +459,42 @@ if __name__ == "__main__":
     try:
         print(f"📁 Loading current data from: {CONFIG['data_path']}")
         current_data = pd.read_csv(CONFIG['data_path'])
+        
+        # Handle null values in loaded data
+        null_counts = current_data.isnull().sum()
+        if null_counts.sum() > 0:
+            print(f"⚠️  Found null values in current data: {null_counts[null_counts > 0].to_dict()}")
+            # Fill null values with 0 for numerical columns
+            numeric_columns = current_data.select_dtypes(include=[np.number]).columns
+            current_data[numeric_columns] = current_data[numeric_columns].fillna(0)
+            print("✅ Null values filled with 0 in numerical columns")
+        
         print(f"✅ Current data loaded: {len(current_data):,} samples, {len(current_data.columns)} features")
         
         print(f"📁 Loading baseline data from: {CONFIG['baseline_data_path']}")
         baseline_data = pd.read_csv(CONFIG['baseline_data_path'])
+        
+        # Handle null values in baseline data
+        null_counts_baseline = baseline_data.isnull().sum()
+        if null_counts_baseline.sum() > 0:
+            print(f"⚠️  Found null values in baseline data: {null_counts_baseline[null_counts_baseline > 0].to_dict()}")
+            # Fill null values with 0 for numerical columns
+            numeric_columns = baseline_data.select_dtypes(include=[np.number]).columns
+            baseline_data[numeric_columns] = baseline_data[numeric_columns].fillna(0)
+            print("✅ Null values filled with 0 in numerical columns")
+        
         print(f"✅ Baseline data loaded: {len(baseline_data):,} samples, {len(baseline_data.columns)} features")
         
         print(f"🤖 Loading Home Loans model from: {CONFIG['model_path']}")
-        detector = HomeLoansDriftDetector(model_path=CONFIG['model_path'])
+        
+        # Check if model file exists
+        if not os.path.exists(CONFIG['model_path']):
+            print(f"⚠️  Model file not found: {CONFIG['model_path']}")
+            print("   Will proceed with dummy predictions for drift detection")
+            detector = HomeLoansDriftDetector(model_path=None)
+        else:
+            detector = HomeLoansDriftDetector(model_path=CONFIG['model_path'])
+        
         if TENSORFLOW_AVAILABLE:
             print("✅ Home Loans Drift Detector initialized successfully")
         else:
@@ -527,17 +504,22 @@ if __name__ == "__main__":
         print("\n🔍 Starting drift detection analysis...")
         print("-" * 40)
         
-        # Perform drift detection with sampling for faster processing
-        start_time = datetime.now()
-        drift_detected, report = detector.is_drift_detected(
-            current_data=current_data,
-            baseline_data=baseline_data,
-            max_samples=1000  # Limit to 1000 samples for faster processing
-        )
-        end_time = datetime.now()
-        processing_time = (end_time - start_time).total_seconds()
-        
-        print(f"⏱️  Drift detection completed in {processing_time:.2f} seconds")
+        # Perform drift detection with additional error handling
+        try:
+            drift_detected, report = detector.is_drift_detected(
+                current_data=current_data,
+                baseline_data=baseline_data
+            )
+        except Exception as e:
+            print(f"❌ Error during drift detection: {str(e)}")
+            print("🔄 Attempting drift detection with dummy predictions...")
+            
+            # Create a simple detector without model for fallback
+            fallback_detector = HomeLoansDriftDetector(model_path=None)
+            drift_detected, report = fallback_detector.is_drift_detected(
+                current_data=current_data,
+                baseline_data=baseline_data
+            )
         
         # Generate summary
         print("\n" + "=" * 60)
@@ -579,6 +561,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error during drift detection: {str(e)}")
         print("Please check the logs for detailed error information")
+        import traceback
+        print("🔍 Full traceback:")
+        traceback.print_exc()
     finally:
         print("\n" + "=" * 60)
         print("🏁 Pipeline execution finished") 
