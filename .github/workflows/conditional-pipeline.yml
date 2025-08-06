@@ -98,7 +98,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Retrain Credit Card Model
-        # run: python VFLClientModels/models/credit_card_xgboost_model.py
+        run: python VFLClientModels/models/credit_card_xgboost_model.py
 
       - name: Set retrained output
         id: set_output
@@ -235,7 +235,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Conditional VFL retraining
-        # run: python VFLClientModels/models/credit_card_xgboost_model.py
+        run: python VFLClientModels/models/vfl_automl_xgboost_homoenc_dp.py
 
   # -------------------------
   # VFL Explanations Dataset Regeneration
