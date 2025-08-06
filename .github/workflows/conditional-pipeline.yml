@@ -246,7 +246,7 @@ jobs:
   regenerate-auto-loans-explanations:
     needs: 
       - retrain-vfl-model
-      - detect-auto-loan-drift
+      - retrain-auto-loan
     if: needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -264,8 +264,7 @@ jobs:
   regenerate-credit-card-explanations:
     needs: 
       - retrain-vfl-model
-      - detect-credit-card-drift
-    if: needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true'
+      - retrain-credit-card
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -279,25 +278,10 @@ jobs:
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         #run: python VFLClientModels/models/explanations/privateexplanations/credit_card_feature_predictor_dataset.py
 
-  regenerate-home-loans-explanations:
-    needs: retrain-vfl-model
-    if: needs.detect-home-loan-drift.outputs.home_loan_drift_detected == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      #- name: Install dependencies
-        #run: pip install -r requirements.txt
-      - name: Regenerate Home Loans VFL Explanations Dataset
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
-        #run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
-
   regenerate-digital-savings-explanations:
-    needs: retrain-vfl-model
-    if: needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected == 'true'
+    needs: 
+      - retrain-vfl-model
+      - retrain-digital-savings
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -311,6 +295,22 @@ jobs:
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         #run: python VFLClientModels/models/explanations/privateexplanations/digital_bank_feature_predictor_dataset.py
 
+  regenerate-home-loans-explanations:
+    needs: 
+      - retrain-vfl-model
+      - retrain-home-loan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Regenerate Home Loans VFL Explanations Dataset
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
 
 
 
