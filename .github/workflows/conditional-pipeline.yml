@@ -334,6 +334,11 @@ jobs:
 
   train-auto-loans-explanations:
     needs: regenerate-auto-loans-explanations
+
+    if: |
+      always() &&
+      (needs.retrain-auto-loan.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -349,6 +354,11 @@ jobs:
 
   train-credit-card-explanations:
     needs: regenerate-credit-card-explanations  
+
+    if: |
+      always() &&
+      (needs.retrain-credit-card.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -364,6 +374,11 @@ jobs:
 
   train-digital-savings-explanations:
     needs: regenerate-digital-savings-explanations
+
+    if: |
+      always() &&
+      (needs.retrain-digital-savings.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -379,6 +394,11 @@ jobs:
 
   train-home-loans-explanations:
     needs: regenerate-home-loans-explanations
+
+    if: |
+      always() &&
+      (needs.retrain-home-loan.result == 'success')
+    
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
