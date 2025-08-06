@@ -262,7 +262,9 @@ jobs:
         #run: python VFLClientModels/models/explanations/privateexplanations/auto_loans_feature_predictor_dataset.py
 
   regenerate-credit-card-explanations:
-    needs: retrain-vfl-model
+    needs: 
+      - retrain-vfl-model
+      - detect-credit-card-drift
     if: needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
