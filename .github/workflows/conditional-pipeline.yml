@@ -7,7 +7,7 @@ jobs:
   run-auto-loans-drift-detector:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
+      should_run: ${{ steps.check.outputs.auto_loan_drift_detected }}
     steps:
       - uses: actions/checkout@v3
 
