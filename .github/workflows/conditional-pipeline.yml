@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run auto loan drift detection
+      - name: Run Auto Loan Drift Detection
         id: check
         run: |
           result=$(python VFLClientModels/drift_detection_retraining/auto_loans_drift_detector_pipeline.py | tail -n 1)
@@ -40,8 +40,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run next stage simulation
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+      - name: Retrain Auto Loan Model
+        run: python VFLClientModels/models/auto_loans_model.py
 
   # --------------------------
   # CREDIT CARD DRIFT DETECTOR
@@ -61,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run credit card loan drift detection
+      - name: Run Credit Card Drift Detection
         id: check
         run: |
           result=$(python VFLClientModels/drift_detection_retraining/xgboost_drift_detector_pipeline.py | tail -n 1)
@@ -79,8 +79,9 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run next stage simulation
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+      - name: Retrain Credit Card Model
+        run: python VFLClientModels/models/auto_loans_model.py
+
 
   # --------------------------
   # HOME LOAN DRIFT DETECTOR
