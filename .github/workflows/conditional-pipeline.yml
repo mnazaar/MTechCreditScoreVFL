@@ -214,14 +214,7 @@ jobs:
       - retrain-auto-loan
       - retrain-credit-card
       - retrain-home-loan
-      - retrain-digital-savings
-    
-    if: |
-      (success() && needs.retrain-auto-loan.result == 'success' && needs.retrain-auto-loan.outputs.retrained == 'true') ||
-      (success() && needs.retrain-credit-card.result == 'success' && needs.retrain-credit-card.outputs.retrained == 'true') ||
-      (success() && needs.retrain-home-loan.result == 'success' && needs.retrain-home-loan.outputs.retrained == 'true') ||
-      (success() && needs.retrain-digital-savings.result == 'success' && needs.retrain-digital-savings.outputs.retrained == 'true')
-     
+      - retrain-digital-savings        
     
     runs-on: ubuntu-latest
     
