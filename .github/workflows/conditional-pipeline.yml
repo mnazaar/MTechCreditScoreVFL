@@ -86,8 +86,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Retrain Credit Card Model
-        run: python VFLClientModels/models/credit_card_xgboost_model.py
-
+        run: python VFLClientModels\drift_detection_retraining\pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/credit_card_xgboost_model.py
 
   # --------------------------
   # HOME LOAN DRIFT DETECTOR
@@ -173,3 +173,19 @@ jobs:
 
       - name: Retrain Digital Savings Model
         run: python VFLClientModels/models/digital_savings_model.py
+
+  retrain-vfl-model:
+    needs: [retrain-auto-loan, retrain-credit-card, retrain-home-loan, retrain-digital-savings]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+     - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Retrain VFL model
+        run: python VFLClientModels\drift_detection_retraining\pipelinenextstagesimulation.py
