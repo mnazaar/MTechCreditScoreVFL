@@ -244,7 +244,9 @@ jobs:
   # VFL Explanations Dataset Regeneration
   # -------------------------
   regenerate-auto-loans-explanations:
-    needs: retrain-vfl-model
+    needs: 
+      - retrain-vfl-model
+      - detect-auto-loan-drift
     if: needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected == 'true'
     runs-on: ubuntu-latest
     steps:
