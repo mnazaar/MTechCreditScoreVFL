@@ -211,20 +211,8 @@ jobs:
   # -------------------------
   retrain-vfl-model:
     needs:
-      - retrain-auto-loan
-      - retrain-credit-card
-      - retrain-home-loan
-      - retrain-digital-savings
+      - detect-digital-savings-drift
     
-    if: >
-      needs.retrain-auto-loan.result == 'success' &&
-      needs.retrain-auto-loan.outputs.retrained == 'true' ||
-      needs.retrain-credit-card.result == 'success' &&
-      needs.retrain-credit-card.outputs.retrained == 'true' ||
-      needs.retrain-home-loan.result == 'success' &&
-      needs.retrain-home-loan.outputs.retrained == 'true' ||
-      needs.retrain-digital-savings.result == 'success' &&
-      needs.retrain-digital-savings.outputs.retrained == 'true' 
     
     runs-on: ubuntu-latest
     
@@ -238,6 +226,20 @@ jobs:
 
       #- name: Install dependencies
         #run: pip install -r requirements.txt
+
+      - name: Echo individual retrain checks
+        run: |
+          echo "Auto Loan Result Success: ${{ needs.retrain-auto-loan.result == 'success' }}"
+          echo "Auto Loan Retrained Output: ${{ needs.retrain-auto-loan.outputs.retrained == 'true' }}"
+
+          echo "Credit Card Result Success: ${{ needs.retrain-credit-card.result == 'success' }}"
+          echo "Credit Card Retrained Output: ${{ needs.retrain-credit-card.outputs.retrained == 'true' }}"
+
+          echo "Home Loan Result Success: ${{ needs.retrain-home-loan.result == 'success' }}"
+          echo "Home Loan Retrained Output: ${{ needs.retrain-home-loan.outputs.retrained == 'true' }}"
+
+          echo "Digital Savings Result Success: ${{ needs.retrain-digital-savings.result == 'success' }}"
+          echo "Digital Savings Retrained Output: ${{ needs.retrain-digital-savings.outputs.retrained == 'true' }}"
 
       - name: Always run debug info
         run: |
