@@ -332,6 +332,67 @@ jobs:
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
         #run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
 
+  train-auto-loans-explanations:
+    needs: regenerate-auto-loans-explanations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Train Auto Loans Explanations Model
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/drift_detection_retraining/train_auto_loans_feature_predictor.py
+
+  train-credit-card-explanations:
+    needs: regenerate-credit-card-explanations  
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Train Credit Card Explanations Model
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/drift_detection_retraining/train_credit_card_feature_predictor.py
+
+  train-digital-savings-explanations:
+    needs: regenerate-digital-savings-explanations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Train Digital Savings Explanations Model
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/drift_detection_retraining/train_digital_bank_feature_predictor.py
+
+  train-home-loans-explanations:
+    needs: regenerate-home-loans-explanations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      #- name: Install dependencies
+        #run: pip install -r requirements.txt
+      - name: Train Home Loans Explanations Model
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/drift_detection_retraining/train_home_loans_feature_predictor.py
+
+
 
 
 
