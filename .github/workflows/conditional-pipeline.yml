@@ -182,7 +182,9 @@ jobs:
 
   retrain-digital-savings:
     needs: detect-digital-savings-drift
+
     if: needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected == 'true'
+
     runs-on: ubuntu-latest
     
     outputs:
@@ -213,6 +215,8 @@ jobs:
     needs:
       - retrain-home-loan
       - retrain-digital-savings
+      - retrain-credit-card
+      - retrain-auto-loan
 
     if: |
       always() &&
@@ -231,34 +235,6 @@ jobs:
 
       #- name: Install dependencies
         #run: pip install -r requirements.txt
-
-      - name: Echo individual retrain checks
-        run: |
-          echo "Auto Loan Result Success: ${{ needs.retrain-auto-loan.result == 'success' }}"
-          echo "Auto Loan Retrained Output: ${{ needs.retrain-auto-loan.outputs.retrained == 'true' }}"
-
-          echo "Credit Card Result Success: ${{ needs.retrain-credit-card.result == 'success' }}"
-          echo "Credit Card Retrained Output: ${{ needs.retrain-credit-card.outputs.retrained == 'true' }}"
-
-          echo "Home Loan Result Success: ${{ needs.retrain-home-loan.result == 'success' }}"
-          echo "Home Loan Retrained Output: ${{ needs.retrain-home-loan.outputs.retrained == 'true' }}"
-
-          echo "Digital Savings Result Success: ${{ needs.retrain-digital-savings.result == 'success' }}"
-          echo "Digital Savings Retrained Output: ${{ needs.retrain-digital-savings.outputs.retrained == 'true' }}"
-
-      - name: Always run debug info
-        run: |
-          echo "Auto Loan Drift: ${{ needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected }}"
-          echo "Credit Card Drift: ${{ needs.detect-credit-card-drift.outputs.credit_card_drift_detected }}"
-          echo "Home Loan Drift: ${{ needs.detect-home-loan-drift.outputs.home_loan_drift_detected }}"
-          echo "Digital Savings Drift: ${{ needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected }}"
-
-      - name: Show retraining status
-        run: |
-          echo "Auto Loan retrained: ${{ needs.retrain-auto-loan.outputs.retrained }}"
-          echo "Credit Card retrained: ${{ needs.retrain-credit-card.outputs.retrained }}"
-          echo "Home Loan retrained: ${{ needs.retrain-home-loan.outputs.retrained }}"
-          echo "Digital Savings retrained: ${{ needs.retrain-digital-savings.outputs.retrained }}"
 
       - name: Conditional VFL retraining
         run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
