@@ -129,7 +129,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Retrain Home Loan Model
-        run: python VFLClientModels/models/home_loans_model.py
+        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        #run: python VFLClientModels/models/home_loans_model.py
 
 
   # --------------------------
@@ -202,4 +203,5 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Retrain VFL model
-        run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
+        run: python VFLClientModels\models\vfl_automl_xgboost_homoenc_dp.py
+        #run: python VFLClientModels/drift_detection_retraining/pipelinenextstagesimulation.py
