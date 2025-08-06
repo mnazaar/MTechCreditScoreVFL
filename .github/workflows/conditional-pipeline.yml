@@ -1,4 +1,4 @@
-name: Conditional Pipeline
+name: Credit Score Model Retraining Pipeline
 
 on:
   workflow_dispatch:
