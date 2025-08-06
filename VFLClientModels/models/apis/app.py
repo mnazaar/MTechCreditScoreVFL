@@ -934,7 +934,7 @@ def predict_digital_savings_features(intermediate_rep):
 def call_internal_api(endpoint, payload):
     """Helper to call internal Flask endpoints via HTTP POST."""
     try:
-        url = f"http://127.0.0.1:5000{endpoint}"
+        url = f"http://127.0.0.1:5001{endpoint}"
         response = requests.post(url, json=payload, timeout=5)
         if response.status_code == 200:
             return response.json()
@@ -1118,6 +1118,18 @@ def predict_customer_features():
             }), 500
         predicted_features = filter_out_credit_score(predicted_features)
         
+        # Get credit score for feature modification
+        try:
+            logging.info(f"🔍 Getting credit score for customer {customer_id} to modify features")
+            credit_score_result = credit_score_predictor_instance.predict_credit_score(customer_id)
+            credit_score = credit_score_result.get('predicted') if credit_score_result else None
+            logging.info(f"📊 Credit score for customer {customer_id}: {credit_score}")
+            # Modify features based on credit score thresholds
+            predicted_features = modify_features_based_on_credit_score(predicted_features, credit_score)
+        except Exception as e:
+            logging.warning(f"⚠️ Could not get credit score for feature modification: {str(e)}")
+            # Continue without modification if credit score prediction fails
+        
         # Prepare response
         response = {
             'customer_id': customer_id,
@@ -1178,6 +1190,18 @@ def predict_home_loans_customer_features():
             }), 500
         predicted_features = filter_out_credit_score(predicted_features)
         
+        # Get credit score for feature modification
+        try:
+            logging.info(f"🔍 Getting credit score for customer {customer_id} to modify features")
+            credit_score_result = credit_score_predictor_instance.predict_credit_score(customer_id)
+            credit_score = credit_score_result.get('predicted') if credit_score_result else None
+            logging.info(f"📊 Credit score for customer {customer_id}: {credit_score}")
+            # Modify features based on credit score thresholds
+            predicted_features = modify_features_based_on_credit_score(predicted_features, credit_score)
+        except Exception as e:
+            logging.warning(f"⚠️ Could not get credit score for feature modification: {str(e)}")
+            # Continue without modification if credit score prediction fails
+        
         # Prepare response
         response = {
             'customer_id': customer_id,
@@ -1237,6 +1261,18 @@ def predict_credit_card_customer_features():
                 'error': 'Failed to predict credit card features'
             }), 500
         predicted_features = filter_out_credit_score(predicted_features)
+        
+        # Get credit score for feature modification
+        try:
+            logging.info(f"🔍 Getting credit score for customer {customer_id} to modify features")
+            credit_score_result = credit_score_predictor_instance.predict_credit_score(customer_id)
+            credit_score = credit_score_result.get('predicted') if credit_score_result else None
+            logging.info(f"📊 Credit score for customer {customer_id}: {credit_score}")
+            # Modify features based on credit score thresholds
+            predicted_features = modify_features_based_on_credit_score(predicted_features, credit_score)
+        except Exception as e:
+            logging.warning(f"⚠️ Could not get credit score for feature modification: {str(e)}")
+            # Continue without modification if credit score prediction fails
         
         # Prepare response
         response = {
@@ -1453,6 +1489,18 @@ def predict_digital_savings_customer_features():
             }), 500
         predicted_features = filter_out_credit_score(predicted_features)
         
+        # Get credit score for feature modification
+        try:
+            logging.info(f"🔍 Getting credit score for customer {customer_id} to modify features")
+            credit_score_result = credit_score_predictor_instance.predict_credit_score(customer_id)
+            credit_score = credit_score_result.get('predicted') if credit_score_result else None
+            logging.info(f"📊 Credit score for customer {customer_id}: {credit_score}")
+            # Modify features based on credit score thresholds
+            predicted_features = modify_features_based_on_credit_score(predicted_features, credit_score)
+        except Exception as e:
+            logging.warning(f"⚠️ Could not get credit score for feature modification: {str(e)}")
+            # Continue without modification if credit score prediction fails
+        
         # Prepare response
         response = {
             'customer_id': customer_id,
@@ -1651,12 +1699,7 @@ def get_customer_credit_insights():
         predicted_score = insights.get('predicted_credit_score')
         
         if nl_explanation:
-            try:
-                from slm_phi_client import get_phi_explanation
-            except ImportError:
-                def get_phi_explanation(prompt):
-                    return "SLM explanation not available (dummy function)."
-
+            from nlg.slm_phi_client import get_phi_explanation
             for product, feats in explanations.items():
                 prompt = format_slm_prompt_single(product, feats, customer_id, predicted_score)
                 explanations_dict[product] = get_phi_explanation(prompt, credit_score=predicted_score)
@@ -1692,6 +1735,46 @@ def get_customer_credit_insights():
             'error': f'Internal server error: {str(e)}'
         }), 500
 
+def modify_features_based_on_credit_score(features, credit_score):
+    """
+    Modify predicted features based on credit score thresholds:
+    - If score < 400: Make all features negative even if positive
+    - If score > 700: Make all features positive even if negative
+    - For scores 400-700: Keep original values (no modification)
+    """
+    if not isinstance(features, list) or credit_score is None:
+        return features
+    
+    # Log the modification
+    if credit_score < 400:
+        logging.info(f"🎯 Credit score {credit_score} < 400: Making all features negative")
+    elif credit_score > 700:
+        logging.info(f"🎯 Credit score {credit_score} > 700: Making all features positive")
+    else:
+        logging.info(f"🎯 Credit score {credit_score} between 400-700: No feature modification needed")
+    
+    modified_features = []
+    for feature in features:
+        modified_feature = feature.copy()
+        
+        if credit_score < 400:
+            # Make all features negative
+            if 'direction' in modified_feature:
+                modified_feature['direction'] = 'Negative'
+            if 'impact' in modified_feature and isinstance(modified_feature['impact'], (int, float)):
+                modified_feature['impact'] = abs(modified_feature['impact']) * -1
+        elif credit_score > 700:
+            # Make all features positive
+            if 'direction' in modified_feature:
+                modified_feature['direction'] = 'Positive'
+            if 'impact' in modified_feature and isinstance(modified_feature['impact'], (int, float)):
+                modified_feature['impact'] = abs(modified_feature['impact'])
+        # For scores 400-700: Keep original values (no modification)
+        
+        modified_features.append(modified_feature)
+    
+    return modified_features
+
 if __name__ == '__main__':
     logger = setup_logging()
     
@@ -1709,4 +1792,4 @@ if __name__ == '__main__':
     logger.info("  - POST /credit-score/customer-insights - Get customer credit insights")
     
     # Run the app
-    app.run(host='0.0.0.0', port=5000, debug=False) 
+    app.run(host='0.0.0.0', port=5001, debug=False) 

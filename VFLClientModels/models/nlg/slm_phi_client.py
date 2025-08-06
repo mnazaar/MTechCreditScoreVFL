@@ -16,6 +16,7 @@ Usage:
 import openai
 import os
 import logging
+from dotenv import load_dotenv
 
 # Set up logger
 logger = logging.getLogger("slm_phi_client")
@@ -26,6 +27,7 @@ if not logger.hasHandlers():
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+load_dotenv('VFLClientModels/.env')
 # Set your OpenAI API key (recommended: use environment variable for security)
 openai.api_key = os.getenv("OPENAI_API_KEY")  # Or set directly: openai.api_key = "sk-..."
 

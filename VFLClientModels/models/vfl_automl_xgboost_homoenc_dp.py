@@ -48,11 +48,11 @@ CONFIDENCE_INTERVALS = [68, 95]
 MIN_CONFIDENCE_THRESHOLD = 0.7
 
 # ===================== AutoML Config =====================
-AUTOML_TRIALS = 10
+AUTOML_TRIALS = 1
 AUTOML_SAMPLE_SIZE = 5000
 AUTOML_EPOCHS_PER_TRIAL = 20
-FINAL_EPOCHS = 300
-FINAL_SAMPLE_SIZE = 50000
+FINAL_EPOCHS = 30
+FINAL_SAMPLE_SIZE = 25000
 
 # ===================== XGBoost Credit Card Feature Extraction =====================
 def load_xgboost_credit_card_model():
