@@ -390,6 +390,8 @@ NEXT STEPS:
             
             # Print report (this will also be logged)
             print(report)
+            self.logger.info(report)
+
             
             return drift_results['overall_drift_detected'], report
             
