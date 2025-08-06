@@ -7,7 +7,7 @@ jobs:
   run-auto-loans-drift-detector:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.check.outputs.auto_loan_drift_detected }}
+      auto_loan_drift_detected: ${{ steps.check.outputs.auto_loan_drift_detected }}
     steps:
       - uses: actions/checkout@v3
 
@@ -22,12 +22,8 @@ jobs:
       - name: Run auto loan drift detection
         id: check
         run: |
-          python "VFLClientModels/drift_detection_retraining/auto_loans_drift_detector_pipeline.py"
-          if [ $? -eq 0 ]; then
-            echo "auto_loan_drift_detected=true" >> $GITHUB_OUTPUT
-          else
-            echo "auto_loan_drift_detected=false" >> $GITHUB_OUTPUT
-          fi
+          result=$(python VFLClientModels/drift_detection_retraining/auto_loans_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
 
   run-auto-loans-model-retraining:
     needs: run-auto-loans-drift-detector
@@ -42,4 +38,4 @@ jobs:
           python-version: '3.10'
 
       - name: Run next stage simulation
-        run: VFLClientModels/drift_detection_retraining/python pipeline_next_stage_simulation.py
+        run: python VFLClientModels/drift_detection_retraining/pipeline_next_stage_simulation.py
