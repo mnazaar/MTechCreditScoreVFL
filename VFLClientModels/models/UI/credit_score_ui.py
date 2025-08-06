@@ -317,7 +317,13 @@ def main():
             # Display explanations
             if nl_explanation:
                 display_explanations(result)
+<<<<<<< HEAD
+            
+            # Display feature explanations (always show if available)
+            display_feature_explanations(result, debug_mode)
+=======
                 display_feature_explanations(result, debug_mode)
+>>>>>>> 49bd1b9136b4f5bf4d8e431592568d2cbfb26ad2
             
             # Display debug info if available
             if debug_mode:
@@ -328,7 +334,11 @@ def main():
                 st.json(result)
                 
             # Additional debug information for feature explanations
+<<<<<<< HEAD
+            if 'feature_explanations' in result:
+=======
             if nl_explanation and 'feature_explanations' in result:
+>>>>>>> 49bd1b9136b4f5bf4d8e431592568d2cbfb26ad2
                 with st.expander("🔍 Debug Feature Explanations Structure"):
                     st.write("Feature explanations keys:", list(result['feature_explanations'].keys()))
                     for product, features in result['feature_explanations'].items():
