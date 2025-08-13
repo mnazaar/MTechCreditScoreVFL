@@ -1,13 +1,16 @@
-name: Credit Score Model Retraining Pipeline
+name: Credit Score VFL Retraining Pipeline
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-auto-loans-drift-detector:
+  # --------------------------------
+  # AUTO LOAN DRIFT DETECTOR + TRAIN
+  # --------------------------------
+  detect-auto-loan-drift:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
+      auto_loan_drift_detected: ${{ steps.check.outputs.auto_loan_drift_detected }}
     steps:
       - uses: actions/checkout@v3
 
@@ -19,20 +22,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run abc.py and set output
+      - name: Run Auto Loan Drift Detection
         id: check
         run: |
-          python abc.py
-          if [ $? -eq 0 ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
+          result=$(python VFLClientModels/drift_detection_retraining/auto_loans_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
 
-  run-auto-loans-model-retraining:
-    needs: run-auto-loans-drift-detector
-    if: needs.run-auto-loans-drift-detector.outputs.should_run == 'true'
+  retrain-auto-loan:
+    needs: detect-auto-loan-drift
+    if: needs.detect-auto-loan-drift.outputs.auto_loan_drift_detected == 'true'
     runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
     steps:
       - uses: actions/checkout@v3
 
@@ -41,5 +44,365 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run next stage simulation
-        run: python pipeline_next_stage_simulation.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Retrain Auto Loan Model
+        run: python VFLClientModels/models/auto_loans_model.py
+
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
+        
+  # -------------------------------------
+  # CREDIT CARD DRIFT DETECTOR + TRAIN
+  # -------------------------------------
+  detect-credit-card-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      credit_card_drift_detected: ${{ steps.check.outputs.credit_card_drift_detected }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Credit Card Drift Detection
+        id: check
+        run: |
+          result=$(python VFLClientModels/drift_detection_retraining/xgboost_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
+
+  retrain-credit-card:
+    needs: detect-credit-card-drift
+    if: needs.detect-credit-card-drift.outputs.credit_card_drift_detected == 'true'
+    runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Retrain Credit Card Model
+        run: python VFLClientModels/models/credit_card_xgboost_model.py
+
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
+        
+  # -----------------------------------
+  # HOME LOAN DRIFT DETECTOR + TRAIN
+  # -----------------------------------
+  detect-home-loan-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      home_loan_drift_detected: ${{ steps.check.outputs.home_loan_drift_detected }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Home Loan Drift Detection
+        id: check
+        run: |
+          result=$(python VFLClientModels/drift_detection_retraining/home_loans_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
+
+  retrain-home-loan:
+    needs: detect-home-loan-drift
+    if: needs.detect-home-loan-drift.outputs.home_loan_drift_detected == 'true'
+    runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Retrain Home Loan Model
+        run: python VFLClientModels/models/home_loans_model.py
+
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
+
+  # ----------------------------------------
+  # DIGITAL SAVINGS DRIFT DETECTOR + TRAIN
+  # ----------------------------------------
+  detect-digital-savings-drift:
+    runs-on: ubuntu-latest
+    outputs:
+      digital_savings_drift_detected: ${{ steps.check.outputs.digital_savings_drift_detected }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Digital Savings Drift Detection
+        id: check
+        run: |
+          result=$(python VFLClientModels/drift_detection_retraining/digital_savings_drift_detector_pipeline.py | tail -n 1)
+          echo "$result" >> $GITHUB_OUTPUT
+
+  retrain-digital-savings:
+    needs: detect-digital-savings-drift
+
+    if: needs.detect-digital-savings-drift.outputs.digital_savings_drift_detected == 'true'
+
+    runs-on: ubuntu-latest
+    
+    outputs:
+      retrained: ${{ steps.set_output.outputs.retrained }}
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Retrain Digital Savings Model
+        run: python VFLClientModels/models/digital_savings_model.py
+
+      - name: Set retrained output
+        id: set_output
+        run: echo "retrained=true" >> $GITHUB_OUTPUT
+
+  # -------------------------
+  # VFL MASTER RETRAINING
+  # -------------------------
+  retrain-vfl-model:
+    needs:
+      - retrain-home-loan
+      - retrain-digital-savings
+      - retrain-credit-card
+      - retrain-auto-loan
+
+    if: |
+      always() &&
+      (needs.retrain-home-loan.result == 'success' || needs.retrain-digital-savings.result == 'success'
+      ||needs.retrain-auto-loan.result == 'success'||needs.retrain-credit-card.result == 'success')
+    
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Conditional VFL retraining
+        run: python VFLClientModels/models/vfl_automl_xgboost_homoenc_dp.py
+
+  # -------------------------
+  # VFL Explanations Dataset Regeneration
+  # -------------------------
+  regenerate-auto-loans-explanations:
+    needs: 
+      - retrain-vfl-model
+      - retrain-auto-loan
+
+    if: |
+      always() &&
+      (needs.retrain-auto-loan.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Regenerate Auto Loans VFL Explanations Dataset
+        run: python VFLClientModels/models/explanations/privateexplanations/auto_loans_feature_predictor_dataset.py
+
+  regenerate-credit-card-explanations:
+    needs: 
+      - retrain-vfl-model
+      - retrain-credit-card
+
+    if: |
+      always() &&
+      (needs.retrain-credit-card.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Regenerate Credit Card VFL Explanations Dataset
+        run: python VFLClientModels/models/explanations/privateexplanations/credit_card_feature_predictor_dataset.py
+
+  regenerate-digital-savings-explanations:
+    needs: 
+      - retrain-vfl-model
+      - retrain-digital-savings
+
+    if: |
+      always() &&
+      (needs.retrain-digital-savings.result == 'success')
+    
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Regenerate Digital Savings VFL Explanations Dataset
+        run: python VFLClientModels/models/explanations/privateexplanations/digital_bank_feature_predictor_dataset.py
+
+  regenerate-home-loans-explanations:
+    needs: 
+      - retrain-vfl-model
+      - retrain-home-loan
+
+    if: |
+      always() &&
+      (needs.retrain-home-loan.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Regenerate Home Loans VFL Explanations Dataset
+        run: python VFLClientModels/models/explanations/privateexplanations/home_loans_feature_predictor_dataset.py
+
+  train-auto-loans-explanations:
+    needs: regenerate-auto-loans-explanations
+
+    if: |
+      always() &&
+      (needs.retrain-auto-loan.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Train Auto Loans Explanations Model
+        run: python VFLClientModels/models/explanations/privateexplanations/train_auto_loans_feature_predictor.py
+
+  train-credit-card-explanations:
+    needs: regenerate-credit-card-explanations  
+
+    if: |
+      always() &&
+      (needs.retrain-credit-card.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Train Credit Card Explanations Model
+        run: python VFLClientModels/models/explanations/privateexplanations/train_credit_card_feature_predictor.py
+
+  train-digital-savings-explanations:
+    needs: regenerate-digital-savings-explanations
+
+    if: |
+      always() &&
+      (needs.retrain-digital-savings.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Train Digital Savings Explanations Model
+        run: python VFLClientModels/models/explanations/privateexplanations/train_digital_bank_feature_predictor.py
+
+  train-home-loans-explanations:
+    needs: regenerate-home-loans-explanations
+
+    if: |
+      always() &&
+      (needs.retrain-home-loan.result == 'success')
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Train Home Loans Explanations Model
+        run: python VFLClientModels/models/explanations/privateexplanations/train_home_loans_feature_predictor.py
+
+
+
+
+
+

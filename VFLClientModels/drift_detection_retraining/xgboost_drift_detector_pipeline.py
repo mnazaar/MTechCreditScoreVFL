@@ -9,37 +9,36 @@ import warnings
 import sys
 warnings.filterwarnings('ignore')
 
-# Try to import TensorFlow, but provide fallback if not available
+# Try to import XGBoost, but provide fallback if not available
 try:
-    import tensorflow as tf
-    from tensorflow.keras.models import load_model
-    TENSORFLOW_AVAILABLE = True
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
 except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    print("⚠️  TensorFlow not available. Model loading will be skipped.")
-    print("   To install TensorFlow: pip install tensorflow")
+    XGBOOST_AVAILABLE = False
+    print("⚠️  XGBoost not available. Model loading will be skipped.")
+    print("   To install XGBoost: pip install xgboost")
 
 # Import the generic drift detector
 try:
     from drift_detection import DriftDetector
 except ImportError as e:
     print(f"❌ Error importing drift_detection: {e}")
-    print("   This might be due to missing dependencies like TensorFlow")
+    print("   This might be due to missing dependencies like XGBoost")
     DriftDetector = None
 
-class AutoLoansDriftDetector:
+class XGBoostDriftDetector:
     """
-    Specialized drift detection for Auto Loans neural network models
+    Specialized drift detection for XGBoost credit card models
     Focuses only on drift detection, not retraining
     Uses the generic DriftDetector infrastructure
     """
     
     def __init__(self, model_path: str = None, config_path: str = None):
         """
-        Initialize Auto Loans drift detector
+        Initialize XGBoost drift detector
         
         Args:
-            model_path: Path to saved Auto Loans model
+            model_path: Path to saved XGBoost model
             config_path: Path to drift detection configuration
         """
         self.logger = self._setup_logging()
@@ -50,8 +49,8 @@ class AutoLoansDriftDetector:
         else:
             self.generic_detector = DriftDetector(config_path)
         
-        # Auto Loans specific thresholds
-        self.auto_loans_thresholds = {
+        # XGBoost specific thresholds
+        self.xgboost_thresholds = {
             'statistical_drift': 0.1,      # KS test p-value threshold
             'performance_drift': 0.15,     # Confidence drift threshold
             'distribution_drift': 0.2,     # Distribution similarity threshold
@@ -62,20 +61,21 @@ class AutoLoansDriftDetector:
         self.model = None
         self.feature_names = None
         self.scaler = None
+        self.label_encoder = None
         
         if model_path:
             self.load_model(model_path)
         
-        self.logger.info("Auto Loans Drift Detector initialized")
+        self.logger.info("XGBoost Drift Detector initialized")
         self.logger.info(f"   - Model loaded: {'YES' if self.model else 'NO'}")
         self.logger.info(f"   - Generic detector: YES")
-        self.logger.info(f"   - Auto Loans-specific thresholds: YES")
+        self.logger.info(f"   - XGBoost-specific thresholds: YES")
     
     def _setup_logging(self):
-        """Setup logging for Auto Loans drift detection with print capture"""
+        """Setup logging for XGBoost drift detection with print capture"""
         os.makedirs('VFLClientModels/logs', exist_ok=True)
         
-        logger = logging.getLogger('AutoLoansDriftDetection')
+        logger = logging.getLogger('XGBoostDriftDetection')
         logger.setLevel(logging.INFO)
         
         # Remove existing handlers to avoid duplicates
@@ -94,7 +94,7 @@ class AutoLoansDriftDetector:
         
         # File handler
         file_handler = logging.FileHandler(
-            f'VFLClientModels/logs/auto_loans_drift_detection_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
+            f'VFLClientModels/logs/xgboost_drift_detection_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
             encoding='utf-8'
         )
         file_handler.setLevel(logging.DEBUG)
@@ -120,93 +120,124 @@ class AutoLoansDriftDetector:
         import builtins
         builtins.print = self._original_print
     
+    def _create_derived_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Create derived features for credit card analysis"""
+        data_proc = data.copy()
+        
+        if self.feature_names:
+            # Create derived features that the model expects
+            if 'credit_capacity_ratio' in self.feature_names and 'credit_card_limit' in data_proc.columns and 'total_credit_limit' in data_proc.columns:
+                data_proc['credit_capacity_ratio'] = data_proc['credit_card_limit'] / data_proc['total_credit_limit'].replace(0, 1)
+            
+            if 'income_to_limit_ratio' in self.feature_names and 'annual_income' in data_proc.columns and 'credit_card_limit' in data_proc.columns:
+                data_proc['income_to_limit_ratio'] = data_proc['annual_income'] / data_proc['credit_card_limit'].replace(0, 1)
+            
+            if 'debt_service_ratio' in self.feature_names and 'current_debt' in data_proc.columns and 'annual_income' in data_proc.columns:
+                data_proc['debt_service_ratio'] = (data_proc['current_debt'] * 0.03) / (data_proc['annual_income'] / 12)
+            
+            if 'risk_adjusted_income' in self.feature_names and 'annual_income' in data_proc.columns and 'risk_score' in data_proc.columns:
+                data_proc['risk_adjusted_income'] = data_proc['annual_income'] * (data_proc['risk_score'] / 100)
+            elif 'risk_adjusted_income' in self.feature_names and 'annual_income' in data_proc.columns and 'debt_to_income_ratio' in data_proc.columns:
+                # Fallback if risk_score not available
+                data_proc['risk_adjusted_income'] = data_proc['annual_income'] * (1 - data_proc['debt_to_income_ratio'])
+        
+        return data_proc
+    
     def load_model(self, model_path: str):
-        """Load Auto Loans model and related artifacts"""
-        if not TENSORFLOW_AVAILABLE:
-            self.logger.warning("Skipping model loading due to missing TensorFlow.")
+        """Load XGBoost model and related artifacts"""
+        if not XGBOOST_AVAILABLE:
+            self.logger.warning("Skipping model loading due to missing XGBoost.")
             return
 
         try:
-            self.logger.info(f"Loading Auto Loans model from {model_path}")
+            self.logger.info(f"Loading XGBoost model from {model_path}")
             
             # Load the main model
-            self.model = load_model(model_path)
-            
-            # Load scaler
-            scaler_path = model_path.replace('.keras', '_scaler.pkl')
-            if os.path.exists(scaler_path):
-                self.scaler = joblib.load(scaler_path)
-                self.logger.info("Loaded scaler")
+            model_data = joblib.load(model_path)
+            self.model = model_data['classifier']
+            self.scaler = model_data['scaler']
+            self.feature_dim = model_data['feature_dim']
             
             # Load feature names
-            feature_names_path = model_path.replace('.keras', '_feature_names.npy')
+            feature_names_path = model_path.replace('_independent.pkl', '_feature_names.npy')
             if os.path.exists(feature_names_path):
                 self.feature_names = list(np.load(feature_names_path, allow_pickle=True))
                 self.logger.info(f"Loaded {len(self.feature_names)} feature names")
             
-            self.logger.info("Auto Loans model loaded successfully")
+            # Load label encoder
+            label_encoder_path = model_path.replace('_independent.pkl', '_label_encoder.pkl')
+            if os.path.exists(label_encoder_path):
+                self.label_encoder = joblib.load(label_encoder_path)
+                self.logger.info(f"Loaded label encoder with {len(self.label_encoder.classes_)} classes")
+            
+            self.logger.info("XGBoost model loaded successfully")
             
         except Exception as e:
             self.logger.error(f"Error loading model: {str(e)}")
             raise
     
-    def predict_auto_loans(self, data: pd.DataFrame) -> np.ndarray:
-        """Make predictions using the loaded Auto Loans model"""
-        if not TENSORFLOW_AVAILABLE or self.model is None:
-            # Return dummy predictions if no model is loaded or TensorFlow is not available
+    def predict_xgboost(self, data: pd.DataFrame) -> np.ndarray:
+        """Make predictions using the loaded XGBoost model"""
+        if not XGBOOST_AVAILABLE or self.model is None:
+            # Return dummy predictions if no model is loaded or XGBoost is not available
             # This allows drift detection to work without a model
-            self.logger.warning("Skipping prediction due to missing TensorFlow or no model loaded.")
-            return np.random.random((len(data), 1))  # 1 output for auto loan amount
+            self.logger.warning("Skipping prediction due to missing XGBoost or no model loaded.")
+            return np.random.random((len(data), 3))  # 3 classes for credit card tiers
         
         try:
             # Create a copy to avoid modifying original data
             data_copy = data.copy()
             
-            # Select features if feature names are available
-            if self.feature_names:
-                missing_features = [f for f in self.feature_names if f not in data_copy.columns]
-                if missing_features:
-                    raise ValueError(f"Missing required features: {missing_features}")
-                data_copy = data_copy[self.feature_names]
+            # Create derived features
+            data_proc = self._create_derived_features(data_copy)
             
             # Handle null values - fill with 0 for numerical features
-            self.logger.info(f"Checking for null values in {len(data_copy.columns)} features...")
-            null_counts = data_copy.isnull().sum()
+            self.logger.info(f"Checking for null values in {len(data_proc.columns)} features...")
+            null_counts = data_proc.isnull().sum()
             if null_counts.sum() > 0:
                 self.logger.warning(f"Found null values in data: {null_counts[null_counts > 0].to_dict()}")
                 # Fill null values with 0 for numerical features
-                data_copy = data_copy.fillna(0)
+                data_proc = data_proc.fillna(0)
                 self.logger.info("Null values filled with 0")
             
             # Convert to numeric, coercing errors to NaN then filling with 0
-            for col in data_copy.columns:
-                if data_copy[col].dtype == 'object':
+            for col in data_proc.columns:
+                if data_proc[col].dtype == 'object':
                     try:
-                        data_copy[col] = pd.to_numeric(data_copy[col], errors='coerce')
-                        data_copy[col] = data_copy[col].fillna(0)
+                        data_proc[col] = pd.to_numeric(data_proc[col], errors='coerce')
+                        data_proc[col] = data_proc[col].fillna(0)
                         self.logger.info(f"Converted column '{col}' to numeric")
                     except Exception as e:
                         self.logger.warning(f"Could not convert column '{col}' to numeric: {e}")
-                        data_copy[col] = 0
+                        data_proc[col] = 0
             
-            # Ensure all data is float32 for TensorFlow compatibility
-            data_copy = data_copy.astype(np.float32)
+            # Check for missing features after creating derived ones
+            if self.feature_names:
+                missing_features = [f for f in self.feature_names if f not in data_proc.columns]
+                if missing_features:
+                    self.logger.warning(f"Missing features after derivation: {missing_features}")
+                    # Fill missing features with 0 as fallback
+                    for feat in missing_features:
+                        data_proc[feat] = 0
+                
+                # Select only the features the model expects
+                data_proc = data_proc[self.feature_names]
+            
+            # Ensure all data is numeric
+            data_proc = data_proc.astype(np.float64)
             
             # Check for infinite values
-            if np.isinf(data_copy.values).any():
+            if np.isinf(data_proc.values).any():
                 self.logger.warning("Found infinite values, replacing with 0")
-                data_copy = data_copy.replace([np.inf, -np.inf], 0)
+                data_proc = data_proc.replace([np.inf, -np.inf], 0)
             
             # Scale features
-            if self.scaler:
-                try:
-                    data_scaled = self.scaler.transform(data_copy)
-                except Exception as e:
-                    self.logger.error(f"Error in scaling: {e}")
-                    # Fallback: use original data without scaling
-                    data_scaled = data_copy.values.astype(np.float32)
-            else:
-                data_scaled = data_copy.values.astype(np.float32)
+            try:
+                data_scaled = self.scaler.transform(data_proc)
+            except Exception as e:
+                self.logger.error(f"Error in scaling: {e}")
+                # Fallback: use original data without scaling
+                data_scaled = data_proc.values.astype(np.float64)
             
             # Final validation before prediction
             if np.isnan(data_scaled).any():
@@ -219,7 +250,7 @@ class AutoLoansDriftDetector:
             
             # Make predictions
             self.logger.info(f"Making predictions on {len(data_scaled)} samples with shape {data_scaled.shape}")
-            predictions = self.model.predict(data_scaled, verbose=0)
+            predictions = self.model.predict_proba(data_scaled)
             
             # Ensure predictions are valid
             if np.isnan(predictions).any() or np.isinf(predictions).any():
@@ -235,14 +266,14 @@ class AutoLoansDriftDetector:
             
             # Return dummy predictions as fallback
             self.logger.warning("Returning dummy predictions due to error")
-            return np.random.random((len(data), 1))
+            return np.random.random((len(data), 3))
     
-    def detect_auto_loans_drift(self, 
-                               current_data: pd.DataFrame,
-                               baseline_data: pd.DataFrame,
-                               target_column: str = None) -> Dict:
+    def detect_xgboost_drift(self, 
+                            current_data: pd.DataFrame,
+                            baseline_data: pd.DataFrame,
+                            target_column: str = None) -> Dict:
         """
-        Detect drift specifically for Auto Loans neural network model
+        Detect drift specifically for XGBoost credit card model
         
         Args:
             current_data: Current data DataFrame
@@ -252,20 +283,29 @@ class AutoLoansDriftDetector:
         Returns:
             Dict containing drift detection results
         """
-        self.logger.info("Starting Auto Loans-specific drift detection...")
+        self.logger.info("Starting XGBoost-specific drift detection...")
+        
+        # Create derived features for both current and baseline data
+        self.logger.info("Creating derived features for drift detection...")
+        
+        # Process current data
+        current_data_proc = self._create_derived_features(current_data)
+        
+        # Process baseline data
+        baseline_data_proc = self._create_derived_features(baseline_data)
         
         # Use feature names if available, otherwise use all columns
-        feature_columns = self.feature_names if self.feature_names else current_data.columns.tolist()
+        feature_columns = self.feature_names if self.feature_names else current_data_proc.columns.tolist()
         
         # Remove target column from features if present
         if target_column and target_column in feature_columns:
             feature_columns.remove(target_column)
         
         self.logger.info(f"Analyzing {len(feature_columns)} features")
-        self.logger.info(f"Baseline samples: {len(baseline_data):,}")
-        self.logger.info(f"Current samples: {len(current_data):,}")
+        self.logger.info(f"Baseline samples: {len(baseline_data_proc):,}")
+        self.logger.info(f"Current samples: {len(current_data_proc):,}")
         
-        # Use the generic detector with Auto Loans-specific functions
+        # Use the generic detector with XGBoost-specific functions
         if self.generic_detector is None:
             self.logger.error("Generic detector not available. Cannot perform drift detection.")
             return {
@@ -274,9 +314,9 @@ class AutoLoansDriftDetector:
             }
         
         drift_results = self.generic_detector.detect_drift_generic(
-            current_data=current_data,
-            baseline_data=baseline_data,
-            model_predictor=self.predict_auto_loans,
+            current_data=current_data_proc,
+            baseline_data=baseline_data_proc,
+            model_predictor=self.predict_xgboost,
             feature_columns=feature_columns,
             target_column=target_column
         )
@@ -299,8 +339,8 @@ class AutoLoansDriftDetector:
         
         return drift_results
     
-    def generate_auto_loans_drift_report(self, drift_results: Dict) -> str:
-        """Generate comprehensive Auto Loans drift report"""
+    def generate_xgboost_drift_report(self, drift_results: Dict) -> str:
+        """Generate comprehensive XGBoost drift report"""
         
         # Extract detailed feature drift information
         statistical_drift = drift_results.get('statistical_drift', {})
@@ -320,16 +360,18 @@ class AutoLoansDriftDetector:
                 feature_drift_details = "\nDRIFTED FEATURES DETAILS:\n   - No features with significant drift detected"
         
         report = f"""
-AUTO LOANS NEURAL NETWORK MODEL DRIFT DETECTION REPORT
+XGBOOST CREDIT CARD MODEL DRIFT DETECTION REPORT
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 OVERALL STATUS: {'DRIFT DETECTED' if drift_results['overall_drift_detected'] else 'NO DRIFT'}
 
 MODEL INFORMATION:
-- Model Type: Auto Loans Neural Network
-- Feature Dimensions: {len(self.feature_names) if self.feature_names else 'Unknown'}
-- Model Architecture: {'Loaded' if self.model else 'Not Loaded'}
+- Model Type: XGBoost Credit Card Classifier
+- Feature Dimensions: {self.feature_dim if hasattr(self, 'feature_dim') else 'Unknown'}
+- Number of Trees: {self.model.n_estimators if self.model else 'Unknown'}
+- Max Depth: {self.model.max_depth if self.model else 'Unknown'}
 - Scaler: {'Loaded' if self.scaler else 'Not Loaded'}
+- Label Encoder: {'Loaded' if self.label_encoder else 'Not Loaded'}
 
 DETAILED DRIFT ANALYSIS:
 
@@ -379,19 +421,18 @@ NEXT STEPS:
         """
         try:
             # Perform drift detection
-            drift_results = self.detect_auto_loans_drift(
+            drift_results = self.detect_xgboost_drift(
                 current_data=current_data,
                 baseline_data=baseline_data,
                 target_column=target_column
             )
             
             # Generate report
-            report = self.generate_auto_loans_drift_report(drift_results)
+            report = self.generate_xgboost_drift_report(drift_results)
             
             # Print report (this will also be logged)
             print(report)
             self.logger.info(report)
-
             return drift_results['overall_drift_detected'], report
             
         except Exception as e:
@@ -410,16 +451,16 @@ NEXT STEPS:
         }
 
 # Example usage function
-def detect_auto_loans_drift(current_data_path: str,
-                           baseline_data_path: str,
-                           model_path: str = None) -> Tuple[bool, str]:
+def detect_credit_card_xgboost_drift(current_data_path: str,
+                                    baseline_data_path: str,
+                                    model_path: str = None) -> Tuple[bool, str]:
     """
-    Convenience function to detect drift in auto loans neural network model
+    Convenience function to detect drift in credit card XGBoost model
     
     Args:
         current_data_path: Path to current data CSV
         baseline_data_path: Path to baseline data CSV
-        model_path: Path to saved Auto Loans model
+        model_path: Path to saved XGBoost model
         
     Returns:
         Tuple of (drift_detected: bool, report: str)
@@ -430,7 +471,7 @@ def detect_auto_loans_drift(current_data_path: str,
     baseline_data = pd.read_csv(baseline_data_path)
     
     # Initialize detector
-    detector = AutoLoansDriftDetector(model_path=model_path)
+    detector = XGBoostDriftDetector(model_path=model_path)
     
     # Detect drift
     drift_detected, report = detector.is_drift_detected(
@@ -444,17 +485,17 @@ def detect_auto_loans_drift(current_data_path: str,
     return drift_detected, report
 
 if __name__ == "__main__":
-    # Auto Loans Drift Detection Pipeline - Independent Execution
-    print("🚗 Auto Loans Drift Detection Pipeline Starting...")
+    # XGBoost Drift Detection Pipeline - Independent Execution
+    print("🌳 XGBoost Drift Detection Pipeline Starting...")
     print("=" * 60)
     
     # Configuration - Hardcoded paths for independent execution
     CONFIG = {
-        'data_path': 'VFLClientModels/dataset/data/banks/auto_loans_bank.csv',
-        'baseline_data_path': 'VFLClientModels/dataset/data/banks/auto_loans_bank_baseline.csv',
-        'model_path': 'VFLClientModels/saved_models/auto_loans_model.keras',
-        'retraining_script': 'VFLClientModels/models/auto_loans_model.py',
-        'detector_class': 'AutoLoansDriftDetector'
+        'data_path': 'VFLClientModels/dataset/data/banks/credit_card_bank.csv',
+        'baseline_data_path': 'VFLClientModels/dataset/data/banks/credit_card_bank_baseline.csv',
+        'model_path': 'VFLClientModels/saved_models/credit_card_xgboost_independent.pkl',
+        'retraining_script': 'VFLClientModels/models/credit_card_xgboost_model.py',
+        'detector_class': 'XGBoostDriftDetector'
     }
     
     try:
@@ -486,20 +527,20 @@ if __name__ == "__main__":
         
         print(f"✅ Baseline data loaded: {len(baseline_data):,} samples, {len(baseline_data.columns)} features")
         
-        print(f"🤖 Loading Auto Loans model from: {CONFIG['model_path']}")
+        print(f"🤖 Loading XGBoost model from: {CONFIG['model_path']}")
         
         # Check if model file exists
         if not os.path.exists(CONFIG['model_path']):
             print(f"⚠️  Model file not found: {CONFIG['model_path']}")
             print("   Will proceed with dummy predictions for drift detection")
-            detector = AutoLoansDriftDetector(model_path=None)
+            detector = XGBoostDriftDetector(model_path=None)
         else:
-            detector = AutoLoansDriftDetector(model_path=CONFIG['model_path'])
+            detector = XGBoostDriftDetector(model_path=CONFIG['model_path'])
         
-        if TENSORFLOW_AVAILABLE:
-            print("✅ Auto Loans Drift Detector initialized successfully")
+        if XGBOOST_AVAILABLE:
+            print("✅ XGBoost Drift Detector initialized successfully")
         else:
-            print("⚠️  Auto Loans Drift Detector initialized (TensorFlow not available)")
+            print("⚠️  XGBoost Drift Detector initialized (XGBoost not available)")
             print("   Drift detection will work with dummy predictions")
         
         print("\n🔍 Starting drift detection analysis...")
@@ -516,7 +557,7 @@ if __name__ == "__main__":
             print("🔄 Attempting drift detection with dummy predictions...")
             
             # Create a simple detector without model for fallback
-            fallback_detector = AutoLoansDriftDetector(model_path=None)
+            fallback_detector = XGBoostDriftDetector(model_path=None)
             drift_detected, report = fallback_detector.is_drift_detected(
                 current_data=current_data,
                 baseline_data=baseline_data
@@ -540,7 +581,7 @@ if __name__ == "__main__":
         
         # Save report to file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_filename = f"VFLClientModels/reports/auto_loans_drift_report_{timestamp}.txt"
+        report_filename = f"VFLClientModels/reports/xgboost_drift_report_{timestamp}.txt"
         os.makedirs('VFLClientModels/reports', exist_ok=True)
         
         with open(report_filename, 'w', encoding='utf-8') as f:
@@ -551,7 +592,7 @@ if __name__ == "__main__":
         # Restore original print function
         detector.restore_print()
         
-        print("\n🎉 Auto Loans Drift Detection Pipeline completed successfully!")
+        print("\n🎉 XGBoost Drift Detection Pipeline completed successfully!")
         
     except FileNotFoundError as e:
         print(f"❌ Error: File not found - {e}")
@@ -569,6 +610,6 @@ if __name__ == "__main__":
         print("\n" + "=" * 60)
         print("🏁 Pipeline execution finished") 
         if drift_detected:
-            print("auto_loan_drift_detected=true")
+            print("credit_card_drift_detected=true")
         else:
-            print("auto_loan_drift_detected=false")
+            print("credit_card_drift_detected=false")

@@ -27,19 +27,19 @@ except ImportError as e:
     print("   This might be due to missing dependencies like TensorFlow")
     DriftDetector = None
 
-class AutoLoansDriftDetector:
+class HomeLoansDriftDetector:
     """
-    Specialized drift detection for Auto Loans neural network models
+    Specialized drift detection for Home Loans neural network models
     Focuses only on drift detection, not retraining
     Uses the generic DriftDetector infrastructure
     """
     
     def __init__(self, model_path: str = None, config_path: str = None):
         """
-        Initialize Auto Loans drift detector
+        Initialize Home Loans drift detector
         
         Args:
-            model_path: Path to saved Auto Loans model
+            model_path: Path to saved Home Loans model
             config_path: Path to drift detection configuration
         """
         self.logger = self._setup_logging()
@@ -50,8 +50,8 @@ class AutoLoansDriftDetector:
         else:
             self.generic_detector = DriftDetector(config_path)
         
-        # Auto Loans specific thresholds
-        self.auto_loans_thresholds = {
+        # Home Loans specific thresholds
+        self.home_loans_thresholds = {
             'statistical_drift': 0.1,      # KS test p-value threshold
             'performance_drift': 0.15,     # Confidence drift threshold
             'distribution_drift': 0.2,     # Distribution similarity threshold
@@ -66,16 +66,16 @@ class AutoLoansDriftDetector:
         if model_path:
             self.load_model(model_path)
         
-        self.logger.info("Auto Loans Drift Detector initialized")
+        self.logger.info("Home Loans Drift Detector initialized")
         self.logger.info(f"   - Model loaded: {'YES' if self.model else 'NO'}")
         self.logger.info(f"   - Generic detector: YES")
-        self.logger.info(f"   - Auto Loans-specific thresholds: YES")
+        self.logger.info(f"   - Home Loans-specific thresholds: YES")
     
     def _setup_logging(self):
-        """Setup logging for Auto Loans drift detection with print capture"""
+        """Setup logging for Home Loans drift detection with print capture"""
         os.makedirs('VFLClientModels/logs', exist_ok=True)
         
-        logger = logging.getLogger('AutoLoansDriftDetection')
+        logger = logging.getLogger('HomeLoansDriftDetection')
         logger.setLevel(logging.INFO)
         
         # Remove existing handlers to avoid duplicates
@@ -94,7 +94,7 @@ class AutoLoansDriftDetector:
         
         # File handler
         file_handler = logging.FileHandler(
-            f'VFLClientModels/logs/auto_loans_drift_detection_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
+            f'VFLClientModels/logs/home_loans_drift_detection_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
             encoding='utf-8'
         )
         file_handler.setLevel(logging.DEBUG)
@@ -121,13 +121,13 @@ class AutoLoansDriftDetector:
         builtins.print = self._original_print
     
     def load_model(self, model_path: str):
-        """Load Auto Loans model and related artifacts"""
+        """Load Home Loans model and related artifacts"""
         if not TENSORFLOW_AVAILABLE:
             self.logger.warning("Skipping model loading due to missing TensorFlow.")
             return
 
         try:
-            self.logger.info(f"Loading Auto Loans model from {model_path}")
+            self.logger.info(f"Loading Home Loans model from {model_path}")
             
             # Load the main model
             self.model = load_model(model_path)
@@ -144,19 +144,19 @@ class AutoLoansDriftDetector:
                 self.feature_names = list(np.load(feature_names_path, allow_pickle=True))
                 self.logger.info(f"Loaded {len(self.feature_names)} feature names")
             
-            self.logger.info("Auto Loans model loaded successfully")
+            self.logger.info("Home Loans model loaded successfully")
             
         except Exception as e:
             self.logger.error(f"Error loading model: {str(e)}")
             raise
     
-    def predict_auto_loans(self, data: pd.DataFrame) -> np.ndarray:
-        """Make predictions using the loaded Auto Loans model"""
+    def predict_home_loans(self, data: pd.DataFrame) -> np.ndarray:
+        """Make predictions using the loaded Home Loans model"""
         if not TENSORFLOW_AVAILABLE or self.model is None:
             # Return dummy predictions if no model is loaded or TensorFlow is not available
             # This allows drift detection to work without a model
             self.logger.warning("Skipping prediction due to missing TensorFlow or no model loaded.")
-            return np.random.random((len(data), 1))  # 1 output for auto loan amount
+            return np.random.random((len(data), 1))  # 1 output for home loan amount
         
         try:
             # Create a copy to avoid modifying original data
@@ -237,12 +237,12 @@ class AutoLoansDriftDetector:
             self.logger.warning("Returning dummy predictions due to error")
             return np.random.random((len(data), 1))
     
-    def detect_auto_loans_drift(self, 
+    def detect_home_loans_drift(self, 
                                current_data: pd.DataFrame,
                                baseline_data: pd.DataFrame,
                                target_column: str = None) -> Dict:
         """
-        Detect drift specifically for Auto Loans neural network model
+        Detect drift specifically for Home Loans neural network model
         
         Args:
             current_data: Current data DataFrame
@@ -252,7 +252,7 @@ class AutoLoansDriftDetector:
         Returns:
             Dict containing drift detection results
         """
-        self.logger.info("Starting Auto Loans-specific drift detection...")
+        self.logger.info("Starting Home Loans-specific drift detection...")
         
         # Use feature names if available, otherwise use all columns
         feature_columns = self.feature_names if self.feature_names else current_data.columns.tolist()
@@ -265,7 +265,7 @@ class AutoLoansDriftDetector:
         self.logger.info(f"Baseline samples: {len(baseline_data):,}")
         self.logger.info(f"Current samples: {len(current_data):,}")
         
-        # Use the generic detector with Auto Loans-specific functions
+        # Use the generic detector with Home Loans-specific functions
         if self.generic_detector is None:
             self.logger.error("Generic detector not available. Cannot perform drift detection.")
             return {
@@ -276,7 +276,7 @@ class AutoLoansDriftDetector:
         drift_results = self.generic_detector.detect_drift_generic(
             current_data=current_data,
             baseline_data=baseline_data,
-            model_predictor=self.predict_auto_loans,
+            model_predictor=self.predict_home_loans,
             feature_columns=feature_columns,
             target_column=target_column
         )
@@ -299,8 +299,8 @@ class AutoLoansDriftDetector:
         
         return drift_results
     
-    def generate_auto_loans_drift_report(self, drift_results: Dict) -> str:
-        """Generate comprehensive Auto Loans drift report"""
+    def generate_home_loans_drift_report(self, drift_results: Dict) -> str:
+        """Generate comprehensive Home Loans drift report"""
         
         # Extract detailed feature drift information
         statistical_drift = drift_results.get('statistical_drift', {})
@@ -320,13 +320,13 @@ class AutoLoansDriftDetector:
                 feature_drift_details = "\nDRIFTED FEATURES DETAILS:\n   - No features with significant drift detected"
         
         report = f"""
-AUTO LOANS NEURAL NETWORK MODEL DRIFT DETECTION REPORT
+HOME LOANS NEURAL NETWORK MODEL DRIFT DETECTION REPORT
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 OVERALL STATUS: {'DRIFT DETECTED' if drift_results['overall_drift_detected'] else 'NO DRIFT'}
 
 MODEL INFORMATION:
-- Model Type: Auto Loans Neural Network
+- Model Type: Home Loans Neural Network
 - Feature Dimensions: {len(self.feature_names) if self.feature_names else 'Unknown'}
 - Model Architecture: {'Loaded' if self.model else 'Not Loaded'}
 - Scaler: {'Loaded' if self.scaler else 'Not Loaded'}
@@ -379,19 +379,20 @@ NEXT STEPS:
         """
         try:
             # Perform drift detection
-            drift_results = self.detect_auto_loans_drift(
+            drift_results = self.detect_home_loans_drift(
                 current_data=current_data,
                 baseline_data=baseline_data,
                 target_column=target_column
             )
             
             # Generate report
-            report = self.generate_auto_loans_drift_report(drift_results)
+            report = self.generate_home_loans_drift_report(drift_results)
             
             # Print report (this will also be logged)
             print(report)
             self.logger.info(report)
 
+            
             return drift_results['overall_drift_detected'], report
             
         except Exception as e:
@@ -410,16 +411,16 @@ NEXT STEPS:
         }
 
 # Example usage function
-def detect_auto_loans_drift(current_data_path: str,
+def detect_home_loans_drift(current_data_path: str,
                            baseline_data_path: str,
                            model_path: str = None) -> Tuple[bool, str]:
     """
-    Convenience function to detect drift in auto loans neural network model
+    Convenience function to detect drift in home loans neural network model
     
     Args:
         current_data_path: Path to current data CSV
         baseline_data_path: Path to baseline data CSV
-        model_path: Path to saved Auto Loans model
+        model_path: Path to saved Home Loans model
         
     Returns:
         Tuple of (drift_detected: bool, report: str)
@@ -430,7 +431,7 @@ def detect_auto_loans_drift(current_data_path: str,
     baseline_data = pd.read_csv(baseline_data_path)
     
     # Initialize detector
-    detector = AutoLoansDriftDetector(model_path=model_path)
+    detector = HomeLoansDriftDetector(model_path=model_path)
     
     # Detect drift
     drift_detected, report = detector.is_drift_detected(
@@ -444,17 +445,17 @@ def detect_auto_loans_drift(current_data_path: str,
     return drift_detected, report
 
 if __name__ == "__main__":
-    # Auto Loans Drift Detection Pipeline - Independent Execution
-    print("🚗 Auto Loans Drift Detection Pipeline Starting...")
+    # Home Loans Drift Detection Pipeline - Independent Execution
+    print("🏠 Home Loans Drift Detection Pipeline Starting...")
     print("=" * 60)
     
     # Configuration - Hardcoded paths for independent execution
     CONFIG = {
-        'data_path': 'VFLClientModels/dataset/data/banks/auto_loans_bank.csv',
-        'baseline_data_path': 'VFLClientModels/dataset/data/banks/auto_loans_bank_baseline.csv',
-        'model_path': 'VFLClientModels/saved_models/auto_loans_model.keras',
-        'retraining_script': 'VFLClientModels/models/auto_loans_model.py',
-        'detector_class': 'AutoLoansDriftDetector'
+        'data_path': 'VFLClientModels/dataset/data/banks/home_loans_bank.csv',
+        'baseline_data_path': 'VFLClientModels/dataset/data/banks/home_loans_bank_baseline.csv',
+        'model_path': 'VFLClientModels/saved_models/home_loans_model.keras',
+        'retraining_script': 'VFLClientModels/models/home_loans_model.py',
+        'detector_class': 'HomeLoansDriftDetector'
     }
     
     try:
@@ -486,20 +487,20 @@ if __name__ == "__main__":
         
         print(f"✅ Baseline data loaded: {len(baseline_data):,} samples, {len(baseline_data.columns)} features")
         
-        print(f"🤖 Loading Auto Loans model from: {CONFIG['model_path']}")
+        print(f"🤖 Loading Home Loans model from: {CONFIG['model_path']}")
         
         # Check if model file exists
         if not os.path.exists(CONFIG['model_path']):
             print(f"⚠️  Model file not found: {CONFIG['model_path']}")
             print("   Will proceed with dummy predictions for drift detection")
-            detector = AutoLoansDriftDetector(model_path=None)
+            detector = HomeLoansDriftDetector(model_path=None)
         else:
-            detector = AutoLoansDriftDetector(model_path=CONFIG['model_path'])
+            detector = HomeLoansDriftDetector(model_path=CONFIG['model_path'])
         
         if TENSORFLOW_AVAILABLE:
-            print("✅ Auto Loans Drift Detector initialized successfully")
+            print("✅ Home Loans Drift Detector initialized successfully")
         else:
-            print("⚠️  Auto Loans Drift Detector initialized (TensorFlow not available)")
+            print("⚠️  Home Loans Drift Detector initialized (TensorFlow not available)")
             print("   Drift detection will work with dummy predictions")
         
         print("\n🔍 Starting drift detection analysis...")
@@ -516,7 +517,7 @@ if __name__ == "__main__":
             print("🔄 Attempting drift detection with dummy predictions...")
             
             # Create a simple detector without model for fallback
-            fallback_detector = AutoLoansDriftDetector(model_path=None)
+            fallback_detector = HomeLoansDriftDetector(model_path=None)
             drift_detected, report = fallback_detector.is_drift_detected(
                 current_data=current_data,
                 baseline_data=baseline_data
@@ -540,7 +541,7 @@ if __name__ == "__main__":
         
         # Save report to file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_filename = f"VFLClientModels/reports/auto_loans_drift_report_{timestamp}.txt"
+        report_filename = f"VFLClientModels/reports/home_loans_drift_report_{timestamp}.txt"
         os.makedirs('VFLClientModels/reports', exist_ok=True)
         
         with open(report_filename, 'w', encoding='utf-8') as f:
@@ -551,7 +552,7 @@ if __name__ == "__main__":
         # Restore original print function
         detector.restore_print()
         
-        print("\n🎉 Auto Loans Drift Detection Pipeline completed successfully!")
+        print("\n🎉 Home Loans Drift Detection Pipeline completed successfully!")
         
     except FileNotFoundError as e:
         print(f"❌ Error: File not found - {e}")
@@ -569,6 +570,6 @@ if __name__ == "__main__":
         print("\n" + "=" * 60)
         print("🏁 Pipeline execution finished") 
         if drift_detected:
-            print("auto_loan_drift_detected=true")
+            print("home_loan_drift_detected=true")
         else:
-            print("auto_loan_drift_detected=false")
+            print("home_loan_drift_detected=false")
