@@ -51,7 +51,7 @@ MIN_CONFIDENCE_THRESHOLD = 0.7
 AUTOML_TRIALS = 1
 AUTOML_SAMPLE_SIZE = 5000
 AUTOML_EPOCHS_PER_TRIAL = 20
-FINAL_EPOCHS = 30
+FINAL_EPOCHS = 300
 FINAL_SAMPLE_SIZE = 25000
 
 # ===================== XGBoost Credit Card Feature Extraction =====================
@@ -740,20 +740,56 @@ def run_training():
     # Predict and cache results for test set
     y_pred = final_model.predict(X_test_final).flatten()
     mean_pred, intervals = mc_dropout_intervals(final_model, X_test_final, n_samples=MC_DROPOUT_SAMPLES, ci_levels=[68, 95])
+    
+    # Calculate mean prediction uncertainty and confidence intervals
+    uncertainties = []
+    ci_68_widths = []
+    ci_95_widths = []
+    
     global _prediction_cache
     _prediction_cache = {}
     for i, idx in enumerate(range(len(X_test_final))):
         tax_id = ids_test_final[idx]
+        
+        # Calculate uncertainty (standard deviation from MC Dropout)
+        uncertainty = float(intervals[68][1][i] - intervals[68][0][i]) / 2.0  # Half-width of 68% CI
+        uncertainties.append(uncertainty)
+        
+        # Calculate confidence interval widths
+        ci_68_width = float(intervals[68][1][i] - intervals[68][0][i])
+        ci_95_width = float(intervals[95][1][i] - intervals[95][0][i])
+        ci_68_widths.append(ci_68_width)
+        ci_95_widths.append(ci_95_width)
+        
         result = {
             'tax_id': tax_id,
             'predicted': float(mean_pred[i]),
             'actual': float(y_test_final[idx]),
             '68_CI': (float(intervals[68][0][i]), float(intervals[68][1][i])),
             '95_CI': (float(intervals[95][0][i]), float(intervals[95][1][i])),
-            'deterministic': float(y_pred[i])
+            'deterministic': float(y_pred[i]),
+            'uncertainty': uncertainty,
+            'ci_68_width': ci_68_width,
+            'ci_95_width': ci_95_width
         }
         logger.info(f"Prediction for {tax_id}: Predicted={result['predicted']:.1f}, Deterministic={result['deterministic']:.1f}, Actual={result['actual']:.1f}, 68% CI=({result['68_CI'][0]:.1f}, {result['68_CI'][1]:.1f}), 95% CI=({result['95_CI'][0]:.1f}, {result['95_CI'][1]:.1f})")
         _prediction_cache[tax_id] = result
+    
+    # Calculate and log mean statistics
+    mean_uncertainty = np.mean(uncertainties)
+    mean_ci_68_width = np.mean(ci_68_widths)
+    mean_ci_95_width = np.mean(ci_95_widths)
+    
+    logger.info("=" * 80)
+    logger.info("📊 MEAN PREDICTION UNCERTAINTY & CONFIDENCE INTERVALS 📊")
+    logger.info("=" * 80)
+    logger.info(f"🎯 Mean Prediction Uncertainty: {mean_uncertainty:.2f} points")
+    logger.info(f"📏 Mean 68% Confidence Interval Width: {mean_ci_68_width:.2f} points")
+    logger.info(f"📏 Mean 95% Confidence Interval Width: {mean_ci_95_width:.2f} points")
+    logger.info(f"📈 Uncertainty Range: {np.min(uncertainties):.2f} - {np.max(uncertainties):.2f} points")
+    logger.info(f"📊 Total Predictions: {len(uncertainties)}")
+    logger.info("=" * 80)
+    
     _save_prediction_cache()
     logger.info(f"Saved predictions for {len(_prediction_cache)} test customers to cache.")
 
@@ -764,6 +800,10 @@ def run_training():
     # Save best hyperparameters
     joblib.dump(best_hyperparameters.values, 'VFLClientModels/saved_models/best_hyperparameters_homoenc_dp.pkl')
     logger.info('Best hyperparameters saved to VFLClientModels/saved_models/best_hyperparameters_homoenc_dp.pkl')
+    
+    # Print final uncertainty summary
+    logger.info("Final uncertainty analysis for the trained model:")
+    print_uncertainty_summary()
 
 
 # Persistent cache file path
@@ -781,6 +821,71 @@ def _save_prediction_cache():
     joblib.dump(_prediction_cache, _CACHE_PATH)
     logger.info(f"Saved prediction cache to {_CACHE_PATH} ({len(_prediction_cache)} entries)")
 
+def calculate_uncertainty_statistics(predictions_dict=None):
+    """
+    Calculate and return mean uncertainty statistics for predictions.
+    
+    Args:
+        predictions_dict: Dictionary of predictions (if None, uses global cache)
+    
+    Returns:
+        dict: Dictionary containing mean uncertainty statistics
+    """
+    if predictions_dict is None:
+        predictions_dict = _prediction_cache
+    
+    if not predictions_dict:
+        logger.warning("No predictions available for uncertainty analysis")
+        return None
+    
+    uncertainties = []
+    ci_68_widths = []
+    ci_95_widths = []
+    
+    for tax_id, result in predictions_dict.items():
+        if 'uncertainty' in result:
+            uncertainties.append(result['uncertainty'])
+            ci_68_widths.append(result['ci_68_width'])
+            ci_95_widths.append(result['ci_95_width'])
+    
+    if not uncertainties:
+        logger.warning("No uncertainty data found in predictions")
+        return None
+    
+    stats = {
+        'mean_uncertainty': np.mean(uncertainties),
+        'mean_ci_68_width': np.mean(ci_68_widths),
+        'mean_ci_95_width': np.mean(ci_95_widths),
+        'min_uncertainty': np.min(uncertainties),
+        'max_uncertainty': np.max(uncertainties),
+        'std_uncertainty': np.std(uncertainties),
+        'total_predictions': len(uncertainties)
+    }
+    
+    return stats
+
+def print_uncertainty_summary(predictions_dict=None):
+    """
+    Print a formatted summary of uncertainty statistics.
+    
+    Args:
+        predictions_dict: Dictionary of predictions (if None, uses global cache)
+    """
+    stats = calculate_uncertainty_statistics(predictions_dict)
+    
+    if stats is None:
+        return
+    
+    logger.info("=" * 80)
+    logger.info("📊 UNCERTAINTY ANALYSIS SUMMARY 📊")
+    logger.info("=" * 80)
+    logger.info(f"🎯 Mean Prediction Uncertainty: {stats['mean_uncertainty']:.2f} ± {stats['std_uncertainty']:.2f} points")
+    logger.info(f"📏 Mean 68% Confidence Interval Width: {stats['mean_ci_68_width']:.2f} points")
+    logger.info(f"📏 Mean 95% Confidence Interval Width: {stats['mean_ci_95_width']:.2f} points")
+    logger.info(f"📈 Uncertainty Range: {stats['min_uncertainty']:.2f} - {stats['max_uncertainty']:.2f} points")
+    logger.info(f"📊 Total Predictions Analyzed: {stats['total_predictions']}")
+    logger.info("=" * 80)
+
 def predict_with_confidence_by_tax_id(tax_id):
     """
     Return cached credit score prediction for a single tax_id if available. Do not perform any computation or prediction if not in the cache.
@@ -795,6 +900,16 @@ def predict_with_confidence_by_tax_id(tax_id):
 # if __name__ == "__main__":
 #     res = predict_with_confidence_by_tax_id('TAX001')
 #     print(res)
+#     
+#     # Analyze uncertainty statistics
+#     stats = calculate_uncertainty_statistics()
+#     if stats:
+#         print(f"Mean uncertainty: {stats['mean_uncertainty']:.2f} points")
+#         print(f"Mean 68% CI width: {stats['mean_ci_68_width']:.2f} points")
+#         print(f"Mean 95% CI width: {stats['mean_ci_95_width']:.2f} points")
+#     
+#     # Print formatted summary
+#     print_uncertainty_summary()
 
 if __name__ == "__main__":
     run_training() 

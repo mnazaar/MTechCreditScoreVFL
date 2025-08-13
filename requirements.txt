@@ -17,6 +17,7 @@ xgboost==3.0.1
 python-dotenv==1.1.1
 matplotlib==3.10.0
 seaborn==0.13.2
+plotly==6.2.0
 
 # For logging and utilities
 python-dateutil==2.9.0.post0
